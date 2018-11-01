@@ -50,3 +50,15 @@ merge <- left_join(cohort_05,location_info )
 #Missing Schools 54 school addresses
 merge %>%  select(Address) %>% is.na() %>% sum()
 
+
+'
+NEXT STEPS:
+1) Is there a way to merge schools with police precincts using addresses?  Maybe with ArcGIS ?
+2) There is different ways to calculate graduate rates.  Cohorts drop out or move in earlier years.
+May be we need Ravi to help us with this.
+3) Things to Merge 
+     a) Police Precinct Crimes Data
+     b) Free Lunch
+     c) Teacher/Student Ratio 
+
+'
