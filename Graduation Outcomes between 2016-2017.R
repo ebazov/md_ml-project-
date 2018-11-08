@@ -1,0 +1,6 @@
+library(tidyverse)
+education <- read_csv('2016-2017_Graduation_Outcomes_School.csv')
+education <- education %>% filter(`Cohort Year` %in% c(2008, 2009, 2010, 2011, 2012)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
+write_csv(education, 'Graduation Outcomes for students: train data set.csv')
+education <- education %>% filter(`Cohort Year` %in% c(2013)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
+write_csv(education, 'Graduation Outcomes for students: test data set.csv')
