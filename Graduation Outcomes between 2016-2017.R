@@ -1,3 +1,4 @@
+#setwd("Desktop/A3SR/APSTA-2047/md_ml-project-")
 
 #Training Years: 2008 to 2012 Incoming
 #Test Year: 2013 Incoming
@@ -12,10 +13,14 @@ Class_Size_School + Crime_Neighborhood + Funding_School + %ESL_School + %Special
 '
 
 library(tidyverse)
-education <- read_csv('2016-2017_Graduation_Outcomes_School.csv')
+education <- read_csv('Data/Input/2016-2017_Graduation_Outcomes_School.csv')
 
-demographics <- read.csv('2006_-_2012_School_Demographics_And_Accountability_Snapshot.csv')
+demographics <- read.csv('Data/Input/2006_-_2012_School_Demographics_And_Accountability_Snapshot.csv')
 
+safety <- read.csv('Data/Input/2010_-_2016_School_Safety_Report.csv')
+
+#Change School.Year to Numeric
+safety$School.Year <- as.numeric(as.character(safety$School.Year))
 
 
 #Cut academic school to fall year
@@ -30,9 +35,9 @@ merged_schools <- left_join(grad_combined, safety, by=c('DBN'='Location.Code', '
 
 #### Split Data ####
 education_train <- education %>% filter(`Cohort Year` %in% c(2008, 2009, 2010, 2011, 2012)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
-write_csv(education_train, 'Graduation Outcomes for students: train data set.csv')
+write_csv(education_train, 'Data/Output/Graduation Outcomes for students: train data set.csv')
 education_test <- education %>% filter(`Cohort Year` %in% c(2013)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
-write_csv(education_test, 'Graduation Outcomes for students: test data set.csv')
+write_csv(education_test, 'Data/Output/Graduation Outcomes for students: test data set.csv')
 
 
 #Check Years 
