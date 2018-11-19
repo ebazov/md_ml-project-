@@ -64,7 +64,7 @@ named_demographic_list <- lapply(demographic_list, prepare_demo_data)
 
 
 #Join Data from list back into one dataframe (NOTE: MAYBE A FOR LOOP could accomplish this)
-x <- named_demographic_list[[1]] %>%  left_join(named_demographic_list[[2]]) %>%  left_join(named_demographic_list[[3]]) %>% left_join(named_demographic_list[[4]]) %>% 
+graduation_tidy <- named_demographic_list[[1]] %>%  left_join(named_demographic_list[[2]]) %>%  left_join(named_demographic_list[[3]]) %>% left_join(named_demographic_list[[4]]) %>% 
                                  left_join(named_demographic_list[[5]]) %>%  left_join(named_demographic_list[[6]]) %>% left_join(named_demographic_list[[7]]) %>% 
                                   left_join(named_demographic_list[[8]]) %>%  left_join(named_demographic_list[[9]]) %>% left_join(named_demographic_list[[10]]) %>% 
                                     left_join(named_demographic_list[[11]]) %>%  left_join(named_demographic_list[[12]]) %>% left_join(named_demographic_list[[13]]) %>% 
@@ -74,36 +74,80 @@ x <- named_demographic_list[[1]] %>%  left_join(named_demographic_list[[2]]) %>%
 #### Check Data ####
 
 #By Gender
- mean(x$All_Students_Total_Cohort_num == x$Male_Total_Cohort_num + x$Female_Total_Cohort_num, na.rm = T)
+ mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$Male_Total_Cohort_num + graduation_tidy$Female_Total_Cohort_num, na.rm = T)
  
  #By English Language Learner (ELL)
- mean(x$All_Students_Total_Cohort_num == x$SWD_Total_Cohort_num+ x$Not_SWD_Total_Cohort_num, na.rm = T)x
+ mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$SWD_Total_Cohort_num+ graduation_tidy$Not_SWD_Total_Cohort_num, na.rm = T)graduation_tidy
  
  #By English Language Learner (ELL)
- mean(x$All_Students_Total_Cohort_num == x$ELL_Total_Cohort_num+ x$Not_ELL_Total_Cohort_num,  na.rm = T)
- mean(x$All_Students_Total_Cohort_num == x$Former_ELL_Total_Cohort_num + x$Never_ELL_Total_Cohort_num + x$Current_ELL_Total_Cohort_num + x$Ever_ELL_Total_Cohort_num, na.rm= T) 
+ mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$ELL_Total_Cohort_num+ graduation_tidy$Not_ELL_Total_Cohort_num,  na.rm = T)
+ mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$Former_ELL_Total_Cohort_num + graduation_tidy$Never_ELL_Total_Cohort_num + graduation_tidy$Current_ELL_Total_Cohort_num + graduation_tidy$Ever_ELL_Total_Cohort_num, na.rm= T) 
  #Note ELL refers to students who do not speak English as a native language and may need addition help 
 #There seems to be something wrong with this
  
 #Also Former and  
  
  #Ethnic Variables 
-(x$All_Students_Total_Cohort_num == ifelse(is.na(x$Asian_Total_Cohort_num)==T , 0, x$Asian_Total_Cohort_num) +
-                                      ifelse(is.na(x$Black_Total_Cohort_num)==T, 0, x$Black_Total_Cohort_num) + 
-                                      ifelse(is.na(x$White_Total_Cohort_num)==T, 0, x$White_Total_Cohort_num) + 
-                                      ifelse(is.na(x$Hispanic_Total_Cohort_num)==T, 0, x$Hispanic_Total_Cohort_num) +
-                                      ifelse(is.na(x$Multi_Racial_Total_Cohort_num)==T, 0, x$Multi_Racial_Total_Cohort_num) +
-                                       ifelse(is.na(x$Native_American_Total_Cohort_num)==T, 0, x$Native_American_Total_Cohort_num) ) %>%  mean()
+(graduation_tidy$All_Students_Total_Cohort_num == ifelse(is.na(graduation_tidy$Asian_Total_Cohort_num)==T , 0, graduation_tidy$Asian_Total_Cohort_num) +
+                                      ifelse(is.na(graduation_tidy$Black_Total_Cohort_num)==T, 0, graduation_tidy$Black_Total_Cohort_num) + 
+                                      ifelse(is.na(graduation_tidy$White_Total_Cohort_num)==T, 0, graduation_tidy$White_Total_Cohort_num) + 
+                                      ifelse(is.na(graduation_tidy$Hispanic_Total_Cohort_num)==T, 0, graduation_tidy$Hispanic_Total_Cohort_num) +
+                                      ifelse(is.na(graduation_tidy$Multi_Racial_Total_Cohort_num)==T, 0, graduation_tidy$Multi_Racial_Total_Cohort_num) +
+                                       ifelse(is.na(graduation_tidy$Native_American_Total_Cohort_num)==T, 0, graduation_tidy$Native_American_Total_Cohort_num) ) %>%  mean()
 
 #Seventeen Unique Demographic Variables
 graduation$Demographic  %>%  unique()
  
 
 #Check Class of Each Column
-sapply(x, class)
+sapply(graduation_tidy, class)
 
 #NOTE: we have to figure out what to do with "s", suppressed values.  Code as zero or generate random numbers ????
 #NOTE: Also should NAs be coded as zero?  Most likely explanation. 
+
+#### Merge Address Data ####
+
+address_2013 <- read.csv("Data/Input/DOE_High_School_Directory_2013-2014.csv" )
+
+#Check Missing SCchools
+graduation_tidy %>% 
+  left_join(address_2013, by = c("DBN" = "DBN")) %>%
+  select(DBN, Cohort_Year, Location.1) %>% 
+  filter(is.na(Location.1)==T) %>% 
+  count(DBN) %>% View()
+
+address_2013 <- read.csv("Data/Input/DOE_High_School_Directory_2013-2014.csv" )
+address_2016 <- read.csv("Data/Input/Archived_DOE_High_School_Directory_2016.csv")
+
+
+
+graduation_tidy %>%  
+  anti_join(address_2013, by = c("DBN" = "DBN")) %>% 
+  pull(DBN) %>% unique()
+
+missing_2013 <- graduation_tidy %>%  
+  anti_join(address_2013, by = c("DBN" = "DBN")) %>% 
+  select(DBN) %>% 
+  count(DBN) %>% 
+  select(DBN)
+
+nrow(missing_2013)
+
+
+missing_2016 <- graduation_tidy %>%  
+  anti_join(address_2016, by = c("DBN" = "dbn")) %>% 
+  select(DBN) %>% 
+  count(DBN) %>% 
+  select(DBN) %>% 
+
+nrow(missing_2016)
+
+
+missing_2013 %>%  anti_join(missing_2016)
+
+missing_2013 %>%  inner_join(missing_2016)  %>%   View()
+
+graduation_tidy$Cohort_Year
 
 ### Merge Demographic Data ###
 
