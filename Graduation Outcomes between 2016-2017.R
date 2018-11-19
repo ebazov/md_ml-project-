@@ -109,45 +109,37 @@ sapply(graduation_tidy, class)
 
 address_2013 <- read.csv("Data/Input/DOE_High_School_Directory_2013-2014.csv" )
 
-#Check Missing SCchools
-graduation_tidy %>% 
-  left_join(address_2013, by = c("DBN" = "DBN")) %>%
-  select(DBN, Cohort_Year, Location.1) %>% 
-  filter(is.na(Location.1)==T) %>% 
-  count(DBN) %>% View()
-
-address_2013 <- read.csv("Data/Input/DOE_High_School_Directory_2013-2014.csv" )
-address_2016 <- read.csv("Data/Input/Archived_DOE_High_School_Directory_2016.csv")
 
 
+#Please Check address_2013 features to see if I should include any other features
+names(address_2013)
 
+address_2013 %>%  select(DBN, Boro, BN, Building.Code, Printed_Name, grade.span.2014.2015.min,
+                         grade.span.2014.2015.max, Primary_Address_Line_1, Total.Student.10.26,
+                         Campus_Name, ELL.Data, School_Type, Language.Classes,  neighborhood, postalCode,
+                         precinct, school_district, latitude, longitude, Borough)%>% 
+ slice(1:20)
+ 
+
+#Check Missing Data
 graduation_tidy %>%  
-  anti_join(address_2013, by = c("DBN" = "DBN")) %>% 
-  pull(DBN) %>% unique()
+  inner_join(address_2013, by = c("DBN" = "DBN")) %>% 
+  pull(Location.1) %>% 
+  is.na() %>% 
+  mean()
 
-missing_2013 <- graduation_tidy %>%  
-  anti_join(address_2013, by = c("DBN" = "DBN")) %>% 
+address_2013%>%  
+  anti_join(graduation_tidy, by = c("DBN" = "DBN")) %>% 
   select(DBN) %>% 
   count(DBN) %>% 
   select(DBN)
 
-nrow(missing_2013)
+'
+NOTE: It appears as though address_2013 contains all the addresses of schools in graduation_tidy
+'
 
 
-missing_2016 <- graduation_tidy %>%  
-  anti_join(address_2016, by = c("DBN" = "dbn")) %>% 
-  select(DBN) %>% 
-  count(DBN) %>% 
-  select(DBN) %>% 
 
-nrow(missing_2016)
-
-
-missing_2013 %>%  anti_join(missing_2016)
-
-missing_2013 %>%  inner_join(missing_2016)  %>%   View()
-
-graduation_tidy$Cohort_Year
 
 ### Merge Demographic Data ###
 
