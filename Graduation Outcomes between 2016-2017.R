@@ -1,18 +1,20 @@
-#setwd("Desktop/A3SR/APSTA-2047/md_ml-project-")
+
+#### Project INFO ####
+#Formula
+
+# Graduation ~ Demographics_School + Avg_Income_Neighborhood +  Safety_School +
+# Class_Size_School + Crime_Neighborhood + Funding_School + %ESL_School + %Special_Ed_School s
+
 
 #Training Years: 2008 to 2012 Incoming
 #Test Year: 2013 Incoming
 
-#Need Demographics for 2012 to 2013 
-#Need School Safety reports for 2008 to 2012 
-
-#Formula
-'
-Graduation ~ Demographics_School + Avg_Income_Neighborhood +  Safety_School + 
-Class_Size_School + Crime_Neighborhood + Funding_School + %ESL_School + %Special_Ed_School s
-'
-
+#### Load Packages ####
+library(broom)
 library(tidyverse)
+
+
+#### Load Graduation Data ####
 graduation <- read_csv('Data/Input/2016-2017_Graduation_Outcomes_School.csv')
 
 
@@ -119,24 +121,24 @@ lm(Grad_Rate ~ Borough, data = graduation) %>%  summary()
 #### Merge Demographic Data ####
 
 #Read in Data from 2005 to 2011
-demo_data_pre_2012 <- read_csv("Data/Input/2006_-_2012_School_Demographics_and_Accountability_Snapshot.csv",
+demo_data_pre_2013 <- read_csv("Data/Input/2006_-_2012_School_Demographics_and_Accountability_Snapshot.csv",
                                na = c("n/a", "NA"))
 
 #Select Relevant Cols
-demo_data_pre_2012 <- demo_data_pre_2013 %>%  
-                        select(DBN, Name, schoolyear,
-                               total_enrollment, ell_percent, sped_percent,
-                               asian_per, black_per, hispanic_per,
-                               white_per, male_per, female_per)
+demo_data_pre_2013 <- demo_data_pre_2013 %>%  
+                        select(DBN, Name, schoolyear, total_enrollment, 
+                               male_per, female_per,
+                               ell_percent, sped_percent,
+                               asian_per, black_per, hispanic_per, white_per)
 
 #Cut academic school to fall year
-demo_data_pre_2012$schoolyear  <- demo_data_pre_2013 %>%
+demo_data_pre_2013$schoolyear  <- demo_data_pre_2013 %>%
                                       pull(schoolyear) %>% 
                                       as.character() %>%   
                                       substr(start = 1, stop = 4) %>%
                                       as.numeric()
 
-colSums(is.na(demo_data_pre_2012)) #Some Missing ELL data
+colSums(is.na(demo_data_pre_2013)) #Some Missing ELL data
 
 
 #Read in Data from 2012 and 2013
@@ -153,9 +155,9 @@ names(demo_data_2012_2013) <- gsub(pattern = "%",
 #Select Relevant Cols
 demo_data_2012_2013 <- demo_data_2012_2013 %>%  
                           select(DBN, School_Name, Year, Total_Enrollment,
-                                 per_Female, per_Male, per_Asian, per_Black,
-                                 per_Hispanic, per_White, per_Students_with_Disabilities,
-                                 per_English_Language_Learners)
+                                  per_Male, per_Female, 
+                                 per_English_Language_Learners,per_Students_with_Disabilities,
+                                 per_Asian, per_Black, per_Hispanic, per_White, )
  
 #Recode School Year as Fall Year    
 demo_data_2012_2013$Year <- demo_data_2012_2013%>%
@@ -166,7 +168,71 @@ demo_data_2012_2013$Year <- demo_data_2012_2013%>%
 
 #Subset rows from 2012 to 2013 school years
 demo_data_2012_2013 <- demo_data_2012_2013 %>% 
-                            filter(Year %in% 2012:2013)
+                            filter(Year %in% c(2012,2013) )
+
+#Rename "Year" as "School_Year"
+names(demo_data_2012_2013)[which(names(demo_data_2012_2013)=="Year") ] <- "School_Year"
+
+#Check that Columns Match
+names(demo_data_pre_2013)
+names(demo_data_2012_2013)
+
+#Rename pre_2013 cols
+names(demo_data_pre_2013) <- names(demo_data_2012_2013)
+
+#Bind Datasets
+demographics <- rbind(demo_data_pre_2013, demo_data_2012_2013)
+names(demographics)[which(names(demographics)=="per_Students_with_Disabilities")] <- "per_SWD"
+names(demographics)[which(names(demographics)=="per_English_Language_Learners")] <- "per_ELL"
+
+graduation <- graduation %>% 
+                  left_join(demographics, c("DBN", "Cohort_Year"= "School_Year"))
+
+graduation$Borough <- as.factor(graduation$Borough)
+graduation$Borough <- relevel(graduation$Borough, ref = "M")
+
+#NOTE: 2012 Demographic data is not available !!!!
+
+#### Build Model ####
+
+grad_2011 <- graduation %>%  filter(Cohort_Year == 2011) 
+
+
+mod1 <- lm(Grad_Rate ~ Borough + per_Female + per_SWD + per_Asian + per_Black + per_Hispanic, 
+   data = grad_2011 ) 
+summary(mod1)
+
+#Add per_ELL
+mod2 <- lm(Grad_Rate ~ Borough + per_Female + per_SWD + per_Asian + per_Black + per_Hispanic +
+     per_ELL, data = grad_2011 ) 
+summary(mod2)
+#Note: After controlling for ELL status, per_Asian no longer significant
+
+     
+#Compare Models 
+anova(mod1, mod2)
+
+#Use Neighborhoods instead of Boroughs
+mod3 <- lm(Grad_Rate~ Neighborhood + per_Female + per_SWD + per_Asian + per_Black + per_Hispanic +
+     per_ELL, data = grad_2011 )
+summary(mod3)  
+tidy(mod3) %>% filter(p.value <= .05) %>% View()
+
+
+#Note: Should we use grouped binomial regression 
+#Marc has done this before, so maybe he will help us. 
+
+predict(mod1) %>%  range()
+predict(mod2) %>%  range() #Predictions greater than 100
+predict(mod3) %>%  range() #Predictions greater than 100
+
+#Test Data
+grad_2013 <-  graduation %>%  filter(Cohort_Year == 2013) 
+pred_2013 <- predict(mod2, newdata = grad_2013 )
+
+#RSS
+mean((grad_2013$Grad_Rate-pred_2013)^2, na.rm =T) %>% sqrt() 
+
 
 #### Split Data ####
 education_train <- education %>% filter(`Cohort Year` %in% c(2008, 2009, 2010, 2011, 2012)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
