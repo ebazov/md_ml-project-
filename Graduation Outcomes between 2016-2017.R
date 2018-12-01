@@ -21,125 +21,88 @@ graduation <- graduation %>%  select(DBN, `School Name`, `Demographic Variable`,
 
 
 
-#Filter Out Cohorts that did not graduate by End of Summer of their senior year (4 years)
-graduation <- graduation %>%  filter(Cohort == "4 year August" ) %>%  select(- Cohort)
-
 #Rename Columns
 names(graduation)[3] <- "Demographic"
 names(graduation) <- gsub(" ", "_", names(graduation))
 names(graduation) <- gsub("#", "num", names(graduation))
 
 
-#### Tidy Demographic Data####
 
-#Rename Multi-Racial as Multi_Racial
-graduation$Demographic <- gsub("-", "_", graduation$Demographic) 
+#Filter Out Cohorts that did not graduate by End of Summer of their senior year (4 years)
+graduation <- graduation %>%  filter(Cohort == "4 year August" ) %>%  select(- Cohort)
+graduation <- graduation %>%  filter(Demographic == "All Students" ) %>%  select(- Demographic)
+graduation <- graduation %>%  select(DBN, School_Name, Cohort_Year, `Total_Grads_%_of_cohort` )
 
-#This section tidies dataframe to include  Demographic Data on Same Row for each School  
+#Look at Closed Schools
+graduation %>%  
+  group_by(DBN, School_Name) %>%  
+  summarize(latest_cohort = max(Cohort_Year)) %>% 
+  filter(latest_cohort < 2013) %>% 
+  as.data.frame()
+#NOTE: y ou can google search these names.  It appears that most of them were closed.
 
-#Split Graduation by Demographic Factor into a list of dataframes 
-demographic_list <- split(graduation, graduation$Demographic)
+#Pull DBNs from Close Schools and store as character vector
+closed_schools <- graduation %>%  
+                      group_by(DBN, School_Name) %>%  
+                      summarize(latest_cohort = max(Cohort_Year)) %>% 
+                      filter(latest_cohort < 2013) %>% 
+                      pull(DBN)
 
-
-prepare_demo_data <- function(df){
-  
-  #This Function takes a dataframe ane renames cols (that are not keys) to include demographic variable 
-  
-  #Extract Name from Demographic Column 
-  name_df <- unique(df[, 3]) %>%  as.character()
-  name_df <- gsub(" ", "_", name_df)
-  
-  #Get Rid of Demographic Col
-  df  <- df[, -3]
-  
-  #Paste Demo Name to Columns
-  names(df)[4:10] <- paste(name_df, names(df)[4:10], sep = "_")
-  
-  return(df)
-  
-}
-
-#Apply prepare_demo_data() function to each data frame in demographic list
-named_demographic_list <- lapply(demographic_list, prepare_demo_data)
-
-
-#Join Data from list back into one dataframe (NOTE: MAYBE A FOR LOOP could accomplish this)
-graduation_tidy <- named_demographic_list[[1]] %>%  left_join(named_demographic_list[[2]]) %>%  left_join(named_demographic_list[[3]]) %>% left_join(named_demographic_list[[4]]) %>% 
-                                 left_join(named_demographic_list[[5]]) %>%  left_join(named_demographic_list[[6]]) %>% left_join(named_demographic_list[[7]]) %>% 
-                                  left_join(named_demographic_list[[8]]) %>%  left_join(named_demographic_list[[9]]) %>% left_join(named_demographic_list[[10]]) %>% 
-                                    left_join(named_demographic_list[[11]]) %>%  left_join(named_demographic_list[[12]]) %>% left_join(named_demographic_list[[13]]) %>% 
-                                    left_join(named_demographic_list[[14]]) %>%  left_join(named_demographic_list[[15]]) %>% left_join(named_demographic_list[[16]]) %>% 
-                                    left_join(named_demographic_list[[17]])
-
-#### Check Data ####
-
-#By Gender
- mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$Male_Total_Cohort_num + graduation_tidy$Female_Total_Cohort_num, na.rm = T)
- 
- #By English Language Learner (ELL)
- mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$SWD_Total_Cohort_num+ graduation_tidy$Not_SWD_Total_Cohort_num, na.rm = T)graduation_tidy
- 
- #By English Language Learner (ELL)
- mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$ELL_Total_Cohort_num+ graduation_tidy$Not_ELL_Total_Cohort_num,  na.rm = T)
- mean(graduation_tidy$All_Students_Total_Cohort_num == graduation_tidy$Former_ELL_Total_Cohort_num + graduation_tidy$Never_ELL_Total_Cohort_num + graduation_tidy$Current_ELL_Total_Cohort_num + graduation_tidy$Ever_ELL_Total_Cohort_num, na.rm= T) 
- #Note ELL refers to students who do not speak English as a native language and may need addition help 
-#There seems to be something wrong with this
- 
-#Also Former and  
- 
- #Ethnic Variables 
-(graduation_tidy$All_Students_Total_Cohort_num == ifelse(is.na(graduation_tidy$Asian_Total_Cohort_num)==T , 0, graduation_tidy$Asian_Total_Cohort_num) +
-                                      ifelse(is.na(graduation_tidy$Black_Total_Cohort_num)==T, 0, graduation_tidy$Black_Total_Cohort_num) + 
-                                      ifelse(is.na(graduation_tidy$White_Total_Cohort_num)==T, 0, graduation_tidy$White_Total_Cohort_num) + 
-                                      ifelse(is.na(graduation_tidy$Hispanic_Total_Cohort_num)==T, 0, graduation_tidy$Hispanic_Total_Cohort_num) +
-                                      ifelse(is.na(graduation_tidy$Multi_Racial_Total_Cohort_num)==T, 0, graduation_tidy$Multi_Racial_Total_Cohort_num) +
-                                       ifelse(is.na(graduation_tidy$Native_American_Total_Cohort_num)==T, 0, graduation_tidy$Native_American_Total_Cohort_num) ) %>%  mean()
-
-#Seventeen Unique Demographic Variables
-graduation$Demographic  %>%  unique()
- 
-
-#Check Class of Each Column
-sapply(graduation_tidy, class)
-
-#NOTE: we have to figure out what to do with "s", suppressed values.  Code as zero or generate random numbers ????
-#NOTE: Also should NAs be coded as zero?  Most likely explanation. 
+#Restrict Analysis to schools currently in operation
+graduation <- graduation %>%  filter(DBN %in% closed_schools == F)
 
 #### Merge Address Data ####
 
-address_2013 <- read.csv("Data/Input/DOE_High_School_Directory_2013-2014.csv" )
+#Load Data from school_saftey
+school_safety <- read_csv("Data/Input/2010_-_2016_School_Safety_Report.csv",
+                          na =  c("N/A","NA", "#N/A"))
+
+#Remove Empty  Spaces from colnames
+names(school_safety) <- gsub(pattern = " ", replacement = "_",
+                             x = names(school_safety))
+
+#Select Cols with Location Info
+location_info <- select(school_safety, DBN, Borough, Latitude, Longitude,
+       NTA) 
+
+#Remove Duplicate DBNs
+location_info <- distinct(location_info , DBN, .keep_all = T)
 
 
+#Merge Location Data with Graduation data
+graduation <- graduation %>%  
+                  left_join(location_info, by = "DBN") 
 
-#Please Check address_2013 features to see if I should include any other features
-names(address_2013)
+#Check Missing Schools
+graduation %>%  
+  group_by(DBN) %>%  
+  summarize( missing_lat = sum(is.na(Latitude))) %>% 
+  filter(missing_lat > 0)
+  
+#Fill in Two Gaps from Two Missing Schools
+address_2018 <- read.csv("Data/Input/2018_DOE_High_School_Directory.csv")
+M552_locate <- address_2018 %>%  
+                      filter(dbn == "06M552") %>% 
+                      select(dbn, Latitude, Longitude, Borough, neighborhood)
+X321_locate <- address_2018 %>%  
+  filter(dbn == "12X321") %>% 
+  select(dbn, Latitude, Longitude, Borough, neighborhood)
 
-address_2013 %>%  select(DBN, Boro, BN, Building.Code, Printed_Name, grade.span.2014.2015.min,
-                         grade.span.2014.2015.max, Primary_Address_Line_1, Total.Student.10.26,
-                         Campus_Name, ELL.Data, School_Type, Language.Classes,  neighborhood, postalCode,
-                         precinct, school_district, latitude, longitude, Borough)%>% 
- slice(1:20)
- 
+#Fill in M552 Data
+graduation[which(graduation$DBN=="06M552") , ]$Latitude <- M552_locate$Latitude
+graduation[which(graduation$DBN=="06M552") , ]$Longitude <- M552_locate$Longitude
+graduation[which(graduation$DBN=="06M552") , ]$Borough <- M552_locate$Borough
+graduation[which(graduation$DBN=="06M552") , ]$NTA <- M552_locate$neighborhood
+
+
+#Fill in X321 Data
+graduation[which(graduation$DBN=="12X321") , ]$Latitude <- X321_locate$Latitude
+graduation[which(graduation$DBN=="12X321") , ]$Longitude <- X321_locate$Longitude
+graduation[which(graduation$DBN=="12X321") , ]$Borough <- X321_locate$Borough
+graduation[which(graduation$DBN=="12X321") , ]$NTA <- X321_locate$neighborhood
 
 #Check Missing Data
-graduation_tidy %>%  
-  inner_join(address_2013, by = c("DBN" = "DBN")) %>% 
-  pull(Location.1) %>% 
-  is.na() %>% 
-  mean()
-
-address_2013%>%  
-  anti_join(graduation_tidy, by = c("DBN" = "DBN")) %>% 
-  select(DBN) %>% 
-  count(DBN) %>% 
-  select(DBN)
-
-'
-NOTE: It appears as though address_2013 contains all the addresses of schools in graduation_tidy
-'
-
-
-
+colSums(is.na(graduation))
 
 ### Merge Demographic Data ###
 
