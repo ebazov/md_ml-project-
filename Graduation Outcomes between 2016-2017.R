@@ -114,21 +114,59 @@ graduation$Grad_Rate <- as.numeric(graduation$Grad_Rate)
 
 #Linear Regression of Grad Rate on Borough (Equivalent to ANOVA)
 lm(Grad_Rate ~ Borough, data = graduation) %>%  summary()
-### Merge Demographic Data ###
 
-### NOT SURE IF WE NEED THIS GIVEN WE HAVE DEMOGRAPHIC VARIABLES IN PREVIOUS DATASET
+
+#### Merge Demographic Data ####
+
+#Read in Data from 2005 to 2011
+demo_data_pre_2012 <- read_csv("Data/Input/2006_-_2012_School_Demographics_and_Accountability_Snapshot.csv",
+                               na = c("n/a", "NA"))
+
+#Select Relevant Cols
+demo_data_pre_2012 <- demo_data_pre_2013 %>%  
+                        select(DBN, Name, schoolyear,
+                               total_enrollment, ell_percent, sped_percent,
+                               asian_per, black_per, hispanic_per,
+                               white_per, male_per, female_per)
 
 #Cut academic school to fall year
-demographics$schoolyear <- demographics %>% pull(schoolyear) %>% as.character() %>%   substr(start = 1, stop = 4) %>% as.numeric()
+demo_data_pre_2012$schoolyear  <- demo_data_pre_2013 %>%
+                                      pull(schoolyear) %>% 
+                                      as.character() %>%   
+                                      substr(start = 1, stop = 4) %>%
+                                      as.numeric()
 
-#Join education and demographics
-education <- left_join(x=graduation , y=demographics, by=c('DBN'='DBN', 'Cohort Year'='schoolyear'))
+colSums(is.na(demo_data_pre_2012)) #Some Missing ELL data
 
 
+#Read in Data from 2012 and 2013
+demo_data_2012_2013 <- read_csv("Data/Input/2013_-_2018_Demographic_Snapshot_School.csv")
+
+names(demo_data_2012_2013) <- gsub(pattern = " ",
+                                   replacement = "_",
+                                   x = names(demo_data_2012_2013))
+names(demo_data_2012_2013) <- gsub(pattern = "%",
+                                   replacement = "per",
+                                   x = names(demo_data_2012_2013))
 
 
+#Select Relevant Cols
+demo_data_2012_2013 <- demo_data_2012_2013 %>%  
+                          select(DBN, School_Name, Year, Total_Enrollment,
+                                 per_Female, per_Male, per_Asian, per_Black,
+                                 per_Hispanic, per_White, per_Students_with_Disabilities,
+                                 per_English_Language_Learners)
+ 
+#Recode School Year as Fall Year    
+demo_data_2012_2013$Year <- demo_data_2012_2013%>%
+                                          pull(Year) %>% 
+                                          as.character() %>%   
+                                          substr(start = 1, stop = 4) %>%
+                                          as.numeric()
 
-
+#Subset rows from 2012 to 2013 school years
+demo_data_2012_2013 <- demo_data_2012_2013 %>% 
+                            filter(Year %in% 2012:2013)
 
 #### Split Data ####
 education_train <- education %>% filter(`Cohort Year` %in% c(2008, 2009, 2010, 2011, 2012)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
@@ -139,13 +177,6 @@ write_csv(education_test, 'Data/Output/Graduation Outcomes for students: test da
 
 
 
-#### Extra Code ####
-#safety <- read.csv('Data/Input/2010_-_2016_School_Safety_Report.csv')
-
-#Change School.Year to Numeric
-#safety$School.Year <- as.numeric(as.character(safety$School.Year))
-#Merge safety and previous combined
-#merged_schools <- left_join(grad_combined, safety, by=c('DBN'='Location.Code', 'Cohort Year'='School.Year'))
 
 
 
