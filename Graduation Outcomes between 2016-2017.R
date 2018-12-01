@@ -83,27 +83,37 @@ graduation %>%
 address_2018 <- read.csv("Data/Input/2018_DOE_High_School_Directory.csv")
 M552_locate <- address_2018 %>%  
                       filter(dbn == "06M552") %>% 
-                      select(dbn, Latitude, Longitude, Borough, neighborhood)
+                      select(dbn, Latitude, Longitude, boro, neighborhood)
 X321_locate <- address_2018 %>%  
   filter(dbn == "12X321") %>% 
-  select(dbn, Latitude, Longitude, Borough, neighborhood)
+  select(dbn, Latitude, Longitude, boro, neighborhood)
 
 #Fill in M552 Data
 graduation[which(graduation$DBN=="06M552") , ]$Latitude <- M552_locate$Latitude
 graduation[which(graduation$DBN=="06M552") , ]$Longitude <- M552_locate$Longitude
-graduation[which(graduation$DBN=="06M552") , ]$Borough <- M552_locate$Borough
+graduation[which(graduation$DBN=="06M552") , ]$Borough <- as.character(M552_locate$boro)
 graduation[which(graduation$DBN=="06M552") , ]$NTA <- M552_locate$neighborhood
 
 
 #Fill in X321 Data
 graduation[which(graduation$DBN=="12X321") , ]$Latitude <- X321_locate$Latitude
 graduation[which(graduation$DBN=="12X321") , ]$Longitude <- X321_locate$Longitude
-graduation[which(graduation$DBN=="12X321") , ]$Borough <- X321_locate$Borough
+graduation[which(graduation$DBN=="12X321") , ]$Borough <- as.character(X321_locate$boro)
 graduation[which(graduation$DBN=="12X321") , ]$NTA <- X321_locate$neighborhood
 
 #Check Missing Data
 colSums(is.na(graduation))
 
+#Rename columns
+names(graduation)[which(names(graduation)=='Total_Grads_%_of_cohort')] <- "Grad_Rate"
+names(graduation)[which(names(graduation)=='NTA')] <- "Neighborhood"
+
+#Convert Grad_Rate to Numer 
+##NOTE: 's' grad rates will be coerced to NA
+graduation$Grad_Rate <- as.numeric(graduation$Grad_Rate)
+
+#Linear Regression of Grad Rate on Borough (Equivalent to ANOVA)
+lm(Grad_Rate ~ Borough, data = graduation) %>%  summary()
 ### Merge Demographic Data ###
 
 ### NOT SURE IF WE NEED THIS GIVEN WE HAVE DEMOGRAPHIC VARIABLES IN PREVIOUS DATASET
