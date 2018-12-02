@@ -193,6 +193,26 @@ graduation$Borough <- relevel(graduation$Borough, ref = "M")
 
 #NOTE: 2012 Demographic data is not available !!!!
 
+#Transfer High Schools 
+transfer_schools <- c("02M544", "02M586", "08X537", "01M650", 
+                      "03M505", "04M310","05M285", "07X379", 
+                      "10X319", "12X480", "13K616", "15K529",
+                      "15K698", "16K669", "17K568", "18K673", 
+                      "21K728", "22K630","23K643", "23K646", 
+                      "23K647", "32K564", "24Q744", "25Q540",
+                      "25Q792", "27Q261", "31R470", "01M515",
+                      "02M394", "02M550","10X397", "01M458", 
+                      "02M313", "02M432", "02M560", "02M565",
+                      "02M570", "2M575", "02M605", "03M404", 
+                      "07X381", "08X377","12X446", "18K578",
+                      "18K635", "28Q338", "15K423", "09X350",
+                      "06M423") 
+
+
+graduation$Transfer <- ifelse(graduation$DBN %in% transfer_schools,
+                              1, 0 )
+
+
 #### Build Model ####
 
 grad_2011 <- graduation %>%  filter(Cohort_Year == 2011) 
@@ -246,19 +266,68 @@ write_csv(education_test, 'Data/Output/Graduation Outcomes for students: test da
 
 #Build Model and Make Prediction
 grad_2011 <- grad_2011[complete.cases(grad_2011) , ]
-mod <- glm(Grad_Rate/100 ~  per_Female/100 + per_SWD/100 + per_Asian/100 + 
-      per_Black/100 + per_Hispanic/100,    
-    data = grad_2011, weight =  Total_Enrollment, family = binomial(link = "logit")) 
 
+
+mod <- glm(Grad_Rate/100 ~  per_Female+ per_SWD + 
+             per_Asian+ per_Black+ per_Hispanic,    
+    data = grad_2011, weight =  Total_Enrollment, 
+    family = binomial(link = "logit")) 
+
+
+
+pred_2011 <- predict(mod, type = "response")
 #Check that Predictions are between 0  & 1
-range(predict(mod, type = "response"))
-
+range(pred_2011 )
 
 #Plot Actual Graduation Rate Over Predicted Rate
-plot(predict(mod, type = "response"), grad_2011$Grad_Rate/100, 
-     xlim = c(0,1))
+plot(pred_2011 , grad_2011$Grad_Rate/100, 
+     xlim = c(0,1), 
+     col = c("orange", "green")[grad_2011$Transfer + 1] )
 abline(a =0, b= 1, col = "red", lty = "dashed" )
 abline(h= .35, col = "blue", lty = "dashed")
+
+
+mod2 <- glm(Grad_Rate/100 ~  per_Female+ per_SWD + 
+             per_Asian+ per_Black+ per_Hispanic + Transfer,    
+           data = grad_2011, weight =  Total_Enrollment, 
+           family = binomial(link = "logit")) 
+
+pred_2011_mod_2 <- predict(mod2, type = "response")
+
+#Plot Actual Graduation Rate Over Predicted Rate
+plot(pred_2011_mod_2, grad_2011$Grad_Rate/100, 
+     xlim = c(0,1), 
+     col = c("orange", "green")[grad_2011$Transfer + 1] )
+abline(a =0, b= 1, col = "red", lty = "dashed" )
+abline(h= .35, col = "blue", lty = "dashed")
+
+
+summary(mod2)
+
+anova(mod2, mod1, test = "Chisq")
+
+
+#Try using glogit 
+mod_glogit <- glm(formula =Grad_Rate/100 ~  per_Female+ per_SWD + 
+          per_Asian+ per_Black+ per_Hispanic + Transfer, 
+    family = binomial(link = "logit"),          
+    data = grad_2011)
+
+prop_hat <- predict(mod_glogit, type = "response")
+wt <- grad_2011$Total_Enrollment * prop_hat * (1 - prop_hat)
+
+mod_glogit_final <- glm(formula =Grad_Rate/100 ~  per_Female+ per_SWD + 
+                          per_Asian+ per_Black+ per_Hispanic + Transfer, 
+                        family = binomial(link = "logit"),          
+                        data = grad_2011,
+                        weight = wt)
+
+pred_2011_glogit <- predict(mod_glogit_final, type = "response")
+
+plot(pred_2011_glogit, grad_2011$Grad_Rate/100, 
+     xlim = c(0,1), 
+     col = c("orange", "green")[grad_2011$Transfer + 1] )
+abline(a =0, b= 1, col = "red", lty = "dashed" )
 
 
 #NOTE: These schools that do not fit model all have graduation rates under 35
