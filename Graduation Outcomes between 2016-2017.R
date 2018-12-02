@@ -244,6 +244,26 @@ write_csv(education_test, 'Data/Output/Graduation Outcomes for students: test da
 
 
 
+#Build Model and Make Prediction
+grad_2011 <- grad_2011[complete.cases(grad_2011) , ]
+mod <- glm(Grad_Rate/100 ~  per_Female/100 + per_SWD/100 + per_Asian/100 + 
+      per_Black/100 + per_Hispanic/100,    
+    data = grad_2011, weight =  Total_Enrollment, family = binomial(link = "logit")) 
+
+#Check that Predictions are between 0  & 1
+range(predict(mod, type = "response"))
 
 
+#Plot Actual Graduation Rate Over Predicted Rate
+plot(predict(mod, type = "response"), grad_2011$Grad_Rate/100, 
+     xlim = c(0,1))
+abline(a =0, b= 1, col = "red", lty = "dashed" )
+abline(h= .35, col = "blue", lty = "dashed")
 
+
+#NOTE: These schools that do not fit model all have graduation rates under 35
+#Google Search indicates they many are "transfer" schools 
+#"Transfer" schools are specifically for students at risk of dropping out
+#We should be able to solve this by adding an indicator variable
+#They seem to have the same slope but a different intercept
+grad_2011 %>%  filter(Grad_Rate < 35) %>%  View()
