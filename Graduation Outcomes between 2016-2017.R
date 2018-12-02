@@ -267,3 +267,13 @@ abline(h= .35, col = "blue", lty = "dashed")
 #We should be able to solve this by adding an indicator variable
 #They seem to have the same slope but a different intercept
 grad_2011 %>%  filter(Grad_Rate < 35) %>%  View()
+
+#Next Steps:
+## Identify Transfer Schools
+## (Maybe?) Identifty Specialized Schools (e.g. Bronx Science)
+## Add Free/Reduced Lunch Data
+## Add School Safety Report Data
+## (Maybe?) Add Neighborhood Violent Crime Data
+## Add Class Size Data or Teacher/Pupil Ratio
+## (Maybe?) Find school funding data
+## (Maybe?) Add district as variable (may need to be MLM model )
