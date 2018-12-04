@@ -314,10 +314,22 @@ summary(mod2)
 coef(mod2)%>%  exp()
 coef(mod2) %>%  exp() - 1
 
-plot(grad_2011$Grad_Rate~ grad_2011$per_SWD )
+plot(grad_2011$Grad_Rate~ grad_2011$per_SWD,
+     col = c("blue", "red")[grad_2011$Transfer + 1])
+abline(h = mean(grad_2011$Grad_Rate), lty = "dashed", col = "orange", lwd = 2)
+abline(v = mean(grad_2011$per_SWD), lty = "dashed", col = "orange", lwd = 2)
+
+
 plot(grad_2011$Grad_Rate~ grad_2011$per_Hispanic )
 plot(grad_2011$Grad_Rate~ grad_2011$per_White )
+
 plot(grad_2011$Grad_Rate~ grad_2011$per_Asian )
+
+plot(grad_2011$Grad_Rate~ grad_2011$per_Black, 
+     col = c("blue", "red")[grad_2011$Transfer + 1])
+abline(h = mean(grad_2011$Grad_Rate), lty = "dashed", col = "orange", lwd = 2)
+abline(v = mean(grad_2011$per_Black), lty = "dashed", col = "orange", lwd = 2)
+
 plot(grad_2011$Grad_Rate~ grad_2011$per_ELL )
 boxplot(grad_2011$Grad_Rate~ grad_2011$Borough )
 plot(grad_2011$Grad_Rate~ grad_2011$Total_Enrollment )
