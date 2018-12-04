@@ -18,22 +18,32 @@ library(tidyverse)
 graduation <- read_csv('Data/Input/2016-2017_Graduation_Outcomes_School.csv')
 
 
-graduation <- graduation %>%  select(DBN, `School Name`, `Demographic Variable`, `Cohort Year`, `Cohort`, `Total Cohort #`, `Total Grads #`, 
-                                     `Total Grads % of cohort`, `Still Enrolled #`, `Still Enrolled % of cohort`, `Dropped Out #`, `Dropped Out % of cohort`)
-
-
+graduation <- graduation %>%  select(DBN, `School Name`, `Demographic Variable`, `Cohort Year`, 
+                                     `Cohort`, `Total Cohort #`, `Total Grads #`, 
+                                     `Total Grads % of cohort`)
 
 #Rename Columns
 names(graduation)[3] <- "Demographic"
 names(graduation) <- gsub(" ", "_", names(graduation))
-names(graduation) <- gsub("#", "num", names(graduation))
-
-
+names(graduation) <- gsub("#", "", names(graduation))
+names(graduation) <- gsub("_$", "", names(graduation))
+names(graduation) <- gsub("%", "per", names(graduation))
 
 #Filter Out Cohorts that did not graduate by End of Summer of their senior year (4 years)
 graduation <- graduation %>%  filter(Cohort == "4 year August" ) %>%  select(- Cohort)
 graduation <- graduation %>%  filter(Demographic == "All Students" ) %>%  select(- Demographic)
-graduation <- graduation %>%  select(DBN, School_Name, Cohort_Year, `Total_Grads_%_of_cohort` )
+
+#Convert Number Variables from Character to Numeric
+graduation <- graduation %>% 
+                    mutate(Cohort_Total = as.numeric(Total_Cohort),
+                           Grad_Total = as.numeric(Total_Grads)) %>% 
+                    select(-Total_Cohort, - Total_Grads)  
+
+
+#Convert Grad Rate to a Percentage
+graduation <- graduation %>%  
+                        mutate(Grad_Rate = as.numeric(Total_Grads_per_of_cohort) / 100 ) %>%  
+                        select(-Total_Grads_per_of_cohort)
 
 #Look at Closed Schools
 graduation %>%  
@@ -41,7 +51,7 @@ graduation %>%
   summarize(latest_cohort = max(Cohort_Year)) %>% 
   filter(latest_cohort < 2013) %>% 
   as.data.frame()
-#NOTE: y ou can google search these names.  It appears that most of them were closed.
+#NOTE: you can google search these names.  It appears that most of them were closed.
 
 #Pull DBNs from Close Schools and store as character vector
 closed_schools <- graduation %>%  
@@ -67,9 +77,12 @@ names(school_safety) <- gsub(pattern = " ", replacement = "_",
 location_info <- select(school_safety, DBN, Borough, Latitude, Longitude,
        NTA) 
 
+#Convert Borough to Factor with Manhattan as Reference
+location_info$Borough <- as.factor(location_info$Borough)
+location_info$Borough <- relevel(location_info$Borough, ref = "M")
+
 #Remove Duplicate DBNs
 location_info <- distinct(location_info , DBN, .keep_all = T)
-
 
 #Merge Location Data with Graduation data
 graduation <- graduation %>%  
@@ -107,12 +120,7 @@ graduation[which(graduation$DBN=="12X321") , ]$NTA <- X321_locate$neighborhood
 colSums(is.na(graduation))
 
 #Rename columns
-names(graduation)[which(names(graduation)=='Total_Grads_%_of_cohort')] <- "Grad_Rate"
 names(graduation)[which(names(graduation)=='NTA')] <- "Neighborhood"
-
-#Convert Grad_Rate to Numer 
-##NOTE: 's' grad rates will be coerced to NA
-graduation$Grad_Rate <- as.numeric(graduation$Grad_Rate)
 
 #Linear Regression of Grad Rate on Borough (Equivalent to ANOVA)
 lm(Grad_Rate ~ Borough, data = graduation) %>%  summary()
@@ -148,16 +156,16 @@ names(demo_data_2012_2013) <- gsub(pattern = " ",
                                    replacement = "_",
                                    x = names(demo_data_2012_2013))
 names(demo_data_2012_2013) <- gsub(pattern = "%",
-                                   replacement = "per",
+                                   replacement = "percent",
                                    x = names(demo_data_2012_2013))
 
 
 #Select Relevant Cols
 demo_data_2012_2013 <- demo_data_2012_2013 %>%  
                           select(DBN, School_Name, Year, Total_Enrollment,
-                                  per_Male, per_Female, 
-                                 per_English_Language_Learners,per_Students_with_Disabilities,
-                                 per_Asian, per_Black, per_Hispanic, per_White, )
+                                  percent_Male, percent_Female, 
+                                 percent_English_Language_Learners,percent_Students_with_Disabilities,
+                                 percent_Asian, percent_Black, percent_Hispanic, percent_White)
  
 #Recode School Year as Fall Year    
 demo_data_2012_2013$Year <- demo_data_2012_2013%>%
@@ -182,14 +190,26 @@ names(demo_data_pre_2013) <- names(demo_data_2012_2013)
 
 #Bind Datasets
 demographics <- rbind(demo_data_pre_2013, demo_data_2012_2013)
-names(demographics)[which(names(demographics)=="per_Students_with_Disabilities")] <- "per_SWD"
-names(demographics)[which(names(demographics)=="per_English_Language_Learners")] <- "per_ELL"
 
+#Change Names and Convert to percents
+demographics <- demographics %>% 
+                        mutate(per_Male = percent_Male ,
+                               per_Female = percent_Female ,
+                               per_ELL = percent_English_Language_Learners ,
+                               per_SWD = percent_Students_with_Disabilities ,
+                               per_Asian = percent_Asian ,
+                               per_Black = percent_Black ,
+                               per_Hispanic = percent_Hispanic ,
+                               per_White = percent_White ) %>% 
+                         select(-percent_Male, - percent_Female, 
+                                -percent_Students_with_Disabilities,
+                                -percent_Asian, -percent_Black, -percent_Hispanic, -percent_White)
+
+#Merge Demographic Data with
 graduation <- graduation %>% 
                   left_join(demographics, c("DBN", "Cohort_Year"= "School_Year"))
 
-graduation$Borough <- as.factor(graduation$Borough)
-graduation$Borough <- relevel(graduation$Borough, ref = "M")
+
 
 #NOTE: 2012 Demographic data is not available !!!!
 
@@ -213,7 +233,7 @@ graduation$Transfer <- ifelse(graduation$DBN %in% transfer_schools,
                               1, 0 )
 
 
-#### Build Model ####
+#### Build Linear Model ####
 
 grad_2011 <- graduation %>%  filter(Cohort_Year == 2011) 
 
@@ -236,7 +256,7 @@ anova(mod1, mod2)
 mod3 <- lm(Grad_Rate~ Neighborhood + per_Female + per_SWD + per_Asian + per_Black + per_Hispanic +
      per_ELL, data = grad_2011 )
 summary(mod3)  
-tidy(mod3) %>% filter(p.value <= .05) %>% View()
+tidy(mod3) %>% filter(p.value <= .05) 
 
 
 #Note: Should we use grouped binomial regression 
@@ -250,28 +270,26 @@ predict(mod3) %>%  range() #Predictions greater than 100
 grad_2013 <-  graduation %>%  filter(Cohort_Year == 2013) 
 pred_2013 <- predict(mod2, newdata = grad_2013 )
 
-#RSS
-mean((grad_2013$Grad_Rate-pred_2013)^2, na.rm =T) %>% sqrt() 
 
+#### Build Grouped Logistic Model ####
 
-#### Split Data ####
-education_train <- education %>% filter(`Cohort Year` %in% c(2008, 2009, 2010, 2011, 2012)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
-write_csv(education_train, 'Data/Output/Graduation Outcomes for students: train data set.csv')
-education_test <- education %>% filter(`Cohort Year` %in% c(2013)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
-write_csv(education_test, 'Data/Output/Graduation Outcomes for students: test data set.csv')
+grad_2011 <- graduation %>%  filter(Cohort_Year == 2011) 
 
-
-
-
-
-#Build Model and Make Prediction
 grad_2011 <- grad_2011[complete.cases(grad_2011) , ]
 
 
-mod <- glm(Grad_Rate/100 ~  per_Female+ per_SWD + 
+mod <- glm(Grad_Rate ~  per_Female+ per_SWD + 
              per_Asian+ per_Black+ per_Hispanic,    
-    data = grad_2011, weight =  Total_Enrollment, 
+    data = grad_2011, weight =  Cohort_Total, 
     family = binomial(link = "logit")) 
+summary(mod)
+
+mod_check <- glm(cbind(Grad_Total, Cohort_Total - Grad_Total) ~
+                   per_Female+ per_SWD + per_Asian+ per_Black+ per_Hispanic,
+                 data = grad_2011,
+                 family = binomial(link = "logit")) 
+summary(mod_check)
+
 
 
 
@@ -280,54 +298,55 @@ pred_2011 <- predict(mod, type = "response")
 range(pred_2011 )
 
 #Plot Actual Graduation Rate Over Predicted Rate
-plot(pred_2011 , grad_2011$Grad_Rate/100, 
+plot(pred_2011 , grad_2011$Grad_Rate, 
      xlim = c(0,1), 
      col = c("orange", "green")[grad_2011$Transfer + 1] )
 abline(a =0, b= 1, col = "red", lty = "dashed" )
 abline(h= .35, col = "blue", lty = "dashed")
 
 
-mod2 <- glm(Grad_Rate/100 ~  per_Female+ per_SWD + 
+#Model 2: Add Transfer as Indicator Variable 
+mod2 <- glm(Grad_Rate ~  per_Female+ per_SWD + 
              per_Asian+ per_Black+ per_Hispanic + Transfer,    
-           data = grad_2011, weight =  Total_Enrollment, 
+           data = grad_2011, weight =  Cohort_Total, 
            family = binomial(link = "logit")) 
+summary(mod2)
+coef(mod2)%>%  exp()
+coef(mod2) %>%  exp() - 1
+
+plot(grad_2011$Grad_Rate~ grad_2011$per_SWD )
+plot(grad_2011$Grad_Rate~ grad_2011$per_Hispanic )
+plot(grad_2011$Grad_Rate~ grad_2011$per_White )
+plot(grad_2011$Grad_Rate~ grad_2011$per_Asian )
+plot(grad_2011$Grad_Rate~ grad_2011$per_ELL )
+boxplot(grad_2011$Grad_Rate~ grad_2011$Borough )
+plot(grad_2011$Grad_Rate~ grad_2011$Total_Enrollment )
+plot(grad_2011$Grad_Rate~ factor(grad_2011$Transfer))
+
+
 
 pred_2011_mod_2 <- predict(mod2, type = "response")
 
 #Plot Actual Graduation Rate Over Predicted Rate
-plot(pred_2011_mod_2, grad_2011$Grad_Rate/100, 
+plot(pred_2011_mod_2, grad_2011$Grad_Rate, 
      xlim = c(0,1), 
      col = c("orange", "green")[grad_2011$Transfer + 1] )
 abline(a =0, b= 1, col = "red", lty = "dashed" )
 abline(h= .35, col = "blue", lty = "dashed")
 
-
+range(pred_2011_mod_2)
 summary(mod2)
 
 anova(mod2, mod1, test = "Chisq")
 
+tapply(grad_2011$Grad_Rate, grad_2011$Transfer, mean)
+(0.2423256 / (1 - 0.2423256 )) / ( 0.7470154  / (1 - .7470154 ))
+mod3 <- glm(Grad_Rate ~ Transfer,    
+            data = grad_2011, weight =  Cohort_Total, 
+            family = binomial(link = "logit")) 
+summary(mod3)
+coef(mod3) %>%  exp()
 
-#Try using glogit 
-mod_glogit <- glm(formula =Grad_Rate/100 ~  per_Female+ per_SWD + 
-          per_Asian+ per_Black+ per_Hispanic + Transfer, 
-    family = binomial(link = "logit"),          
-    data = grad_2011)
-
-prop_hat <- predict(mod_glogit, type = "response")
-wt <- grad_2011$Total_Enrollment * prop_hat * (1 - prop_hat)
-
-mod_glogit_final <- glm(formula =Grad_Rate/100 ~  per_Female+ per_SWD + 
-                          per_Asian+ per_Black+ per_Hispanic + Transfer, 
-                        family = binomial(link = "logit"),          
-                        data = grad_2011,
-                        weight = wt)
-
-pred_2011_glogit <- predict(mod_glogit_final, type = "response")
-
-plot(pred_2011_glogit, grad_2011$Grad_Rate/100, 
-     xlim = c(0,1), 
-     col = c("orange", "green")[grad_2011$Transfer + 1] )
-abline(a =0, b= 1, col = "red", lty = "dashed" )
 
 
 #NOTE: These schools that do not fit model all have graduation rates under 35
@@ -346,3 +365,13 @@ grad_2011 %>%  filter(Grad_Rate < 35) %>%  View()
 ## Add Class Size Data or Teacher/Pupil Ratio
 ## (Maybe?) Find school funding data
 ## (Maybe?) Add district as variable (may need to be MLM model )
+
+
+
+#### Split Data ####
+# education_train <- education %>% filter(`Cohort Year` %in% c(2008, 2009, 2010, 2011, 2012)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
+# write_csv(education_train, 'Data/Output/Graduation Outcomes for students: train data set.csv')
+# education_test <- education %>% filter(`Cohort Year` %in% c(2013)) %>% filter( Cohort %in% c('4 year August', '4 year June'))
+# write_csv(education_test, 'Data/Output/Graduation Outcomes for students: test data set.csv')
+# 
+
