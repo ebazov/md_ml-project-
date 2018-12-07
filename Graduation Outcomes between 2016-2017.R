@@ -14,6 +14,7 @@ library(broom)
 library(tidyverse)
 library(ROCR)
 library(glmnet)
+library(randomForest)
 
 #### Load Graduation Data ####
 graduation <- read_csv('Data/Input/2016-2017_Graduation_Outcomes_School.csv')
@@ -414,7 +415,7 @@ coef(lasso.reg)
 #Generate Predictions
 test$predicted.prob.log <- predict(mod_district, newdata = test, type='response')  
 
-#Calculate MSE 
+#Calculate RMSE 
 sqrt(mean((test$predicted.prob.log - test$Grad_Rate)^2, na.rm = T))*100
 
 #Plot Observed Grad Rate OVER Predicted Grad Rate
@@ -429,9 +430,22 @@ plot(test$predicted.prob.lasso, test$Grad_Rate)
 abline(a = 0, b = 1, lty = "dashed", col = "red")
 
 
-#Calculate MSE 
+#Calculate RMSE 
 sqrt(mean((test$predicted.prob.lasso- test$Grad_Rate)^2, na.rm = T))*100
 
+#### Random Forest #####
+mod_forest <- randomForest(Grad_Rate ~ District +per_Female + 
+                 per_Asian+ per_Black+ per_Hispanic +
+                 per_ELL + per_SWD + 
+                 per_Poverty +
+                 Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+                 Transfer,
+                  data = train, weight =  Cohort_Total, ntree = 1000)
+test$predicted.prob.forest <- predict(mod_forest, newdata = test)
+
+#Plot Prediction
+plot(test$predicted.prob.lasso, test$Grad_Rate)
+abline(a = 0, b = 1, lty = "dashed", col = "red")
 
 #### Build Grouped Logistic Model ####
 # 
