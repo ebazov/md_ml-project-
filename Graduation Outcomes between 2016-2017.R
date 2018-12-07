@@ -13,6 +13,7 @@
 library(broom)
 library(tidyverse)
 library(ROCR)
+library(glmnet)
 
 #### Load Graduation Data ####
 graduation <- read_csv('Data/Input/2016-2017_Graduation_Outcomes_School.csv')
@@ -276,6 +277,9 @@ grad_2013 <-  graduation %>%  filter(Cohort_Year == 2013)
 
 colSums(is.na(grad_2013))
 
+####Complete Cases Only####
+nrow(grad_2013)
+grad_2013 <- grad_2013[complete.cases(grad_2013),]
 
 #### Train/Test Split ####
 set.seed(9999)
@@ -332,6 +336,20 @@ plot(mod_district)
 
 #Look at Outliers
 train %>% slice(c(10, 126, 138, 182, 299, 347)) %>%  as.data.frame()
+
+##Lasso regression
+y <- as.matrix(train$Grad_Rate)
+x <- model.matrix(~as.numeric(District) + per_Female + 
+                    per_Asian+ per_Black + per_Hispanic +
+                    per_ELL + per_SWD + 
+                    per_Poverty + Major_Crime_Rate + 
+                    Transfer-1, data=train)
+test_matrix <- model.matrix(~as.numeric(District) + per_Female + 
+                              per_Asian+ per_Black + per_Hispanic +
+                              per_ELL + per_SWD + 
+                              per_Poverty + Major_Crime_Rate + 
+                              Transfer-1, data=train)
+lasso.reg <- glmnet(x, y, family='gaussian', alpha=1, lambda=0.01)
 
 #####Generating predictions from model with district#######
 
