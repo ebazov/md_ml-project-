@@ -270,15 +270,39 @@ graduation$District <- graduation %>%
   pull(DBN) %>% 
   substr(start = 1, stop = 2)  %>% as.factor()
 
-#### 2013 Data ####
+#### Filter 2013 Data ####
 
 
 grad_2013 <-  graduation %>%  filter(Cohort_Year == 2013) 
 
+#Check Total Number of High Schools in 2013 
+nrow(grad_2013)
+
+#### Missing Data Analysis of 2013 ####
+
+#Examine Missing Item Data
 colSums(is.na(grad_2013))
 
+#Look at Missing Data Listwise 
+
+#Eight were missing Grad Rate  (8 Missing Total)
+missing_data <- grad_2013[complete.cases(grad_2013)==F, ]
+missing_data[is.na(missing_data$Grad_Rate)==T , ] %>% nrow()
+
+#One Missing Crime Rate but not Grad Rate (7 Missing Total )
+missing_data %>% filter( is.na(missing_data$Major_Crime_Rate)==T  & 
+                          is.na(missing_data$Grad_Rate)== F  &
+                           is.na(missing_data$per_ELL)== F ) %>% nrow()
+
+#9 Observations Dropped because they were missing ELL (16 missing Total )
+missing_data %>%  filter(is.na(missing_data$per_ELL)==T & 
+                          is.na(missing_data$Major_Crime_Rate)==F &
+                           is.na(missing_data$Grad_Rate)==F ) %>%  nrow()
+#18 Obsevations Missing Total 
+nrow(missing_data) / nrow(grad_2013) * 100
+# 3.8% Observations Dropped due tomssing Data
 ####Complete Cases Only####
-nrow(grad_2013)
+
 grad_2013 <- grad_2013[complete.cases(grad_2013),]
 
 #### Train/Test Split ####
