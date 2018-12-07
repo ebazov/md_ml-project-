@@ -300,7 +300,8 @@ missing_data %>%  filter(is.na(missing_data$per_ELL)==T &
                            is.na(missing_data$Grad_Rate)==F ) %>%  nrow()
 #18 Obsevations Missing Total 
 nrow(missing_data) / nrow(grad_2013) * 100
-# 3.8% Observations Dropped due tomssing Data
+# 3.8% Observations Dropped due to missing Data
+
 ####Complete Cases Only####
 
 grad_2013 <- grad_2013[complete.cases(grad_2013),]
@@ -315,45 +316,73 @@ test <- grad_2013 %>% filter(!(DBN %in% train$DBN))
 #Model with Demographic, ELL and SWD
 mod <- glm(Grad_Rate ~ per_Female + 
              per_Asian+ per_Black+ per_Hispanic+
-             per_ELL + per_SWD,
+             per_ELL + per_SWD +
+             Transfer,
            data = train, weight =  Cohort_Total,
            family = binomial(link = "logit"))
 summary(mod)
 
-#Add poverty to Models
+#Model with Poverty
 mod_poverty <- glm(Grad_Rate ~ per_Female+ 
                      per_Asian+ per_Black+ per_Hispanic + 
                      per_ELL + per_SWD +
-                     per_Poverty,
+                     per_Poverty + 
+                     Transfer,
                    data = train, weight =  Cohort_Total,
                    family = binomial(link = "logit"))
 summary(mod_poverty)
 
-#Add Crime Data 
+#Model with  Crime Data 
 mod_crimes <- glm(Grad_Rate ~ per_Female + 
                     per_Asian+ per_Black+ per_Hispanic +
                     per_ELL + per_SWD +
                     per_Poverty +
-                    Major_Crime_Rate,
+                    Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+                    Transfer, 
                   data = train, weight =  Cohort_Total,
                   family = binomial(link = "logit"))
-
-
 summary(mod_crimes)
-coef(mod_crimes) %>%  exp()
 anova(mod, mod_poverty,  test="Chisq")
 
+#Fixed Effects Model with District
 mod_district <- glm(Grad_Rate ~ District +per_Female + 
                       per_Asian+ per_Black+ per_Hispanic +
                       per_ELL + per_SWD + 
-                      per_Poverty +    Major_Crime_Rate + 
+                      per_Poverty +
+                      Property_Crime_Rate + Violent_Rate + Behavior_Rate +
                       Transfer,
                     data = train, weight =  Cohort_Total,
                     family = binomial(link = "logit"))
 summary(mod_district)
 coef(mod_district) %>%  exp()
 
+
+mod_diff <- glm(cbind(Grad_Total, Cohort_Total - Grad_Total) ~ per_Female + 
+                      per_Asian+ per_Black+ per_Hispanic +
+                      per_ELL + per_SWD + 
+                      per_Poverty +
+                      Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+                      Transfer,
+                    data = train,
+                    family = binomial(link = "logit"))
+summary(mod_diff)
+summary(mod_crimes)
+
+
 anova(mod_crimes, mod_district,  test='Chisq')
+
+#Full Model Without Poverty Variable
+mod_drop_Poverty <- glm(Grad_Rate ~ District +per_Female + 
+                      per_Asian+ per_Black+ per_Hispanic +
+                      per_ELL + per_SWD + 
+                      Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+                      Transfer,
+                    data = train, weight =  Cohort_Total,
+                    family = binomial(link = "logit"))
+summary(mod_drop_Poverty)
+
+
+anova(mod_drop_Poverty, mod_district,  test='Chisq')
 
 #Plot Residuals/ 
 plot(mod_district)
@@ -362,18 +391,22 @@ plot(mod_district)
 train %>% slice(c(10, 126, 138, 182, 299, 347)) %>%  as.data.frame()
 
 ##Lasso regression
-y <- as.matrix(train$Grad_Rate)
-x <- model.matrix(~as.numeric(District) + per_Female + 
+
+
+y <- as.matrix(cbind(train$Cohort_Total - train$Grad_Total, train$Grad_Total))
+x <- model.matrix(~District + per_Female + 
                     per_Asian+ per_Black + per_Hispanic +
                     per_ELL + per_SWD + 
                     per_Poverty + Major_Crime_Rate + 
                     Transfer-1, data=train)
-test_matrix <- model.matrix(~as.numeric(District) + per_Female + 
+test_matrix <- model.matrix(~District + per_Female + 
                               per_Asian+ per_Black + per_Hispanic +
                               per_ELL + per_SWD + 
                               per_Poverty + Major_Crime_Rate + 
-                              Transfer-1, data=train)
-lasso.reg <- glmnet(x, y, family='gaussian', alpha=1, lambda=0.01)
+                              Transfer-1, data=test)
+lasso.reg <- glmnet(x, y, family='binomial', alpha=1, lambda=0.01)
+coef(lasso.reg)
+
 
 #####Generating predictions from model with district#######
 
@@ -382,13 +415,22 @@ lasso.reg <- glmnet(x, y, family='gaussian', alpha=1, lambda=0.01)
 test$predicted.prob.log <- predict(mod_district, newdata = test, type='response')  
 
 #Calculate MSE 
-sqrt(mean((test$predicted.prob.log - test$Grad_Rate)^2, na.rm = T))
+sqrt(mean((test$predicted.prob.log - test$Grad_Rate)^2, na.rm = T))*100
 
 #Plot Observed Grad Rate OVER Predicted Grad Rate
 plot(test$predicted.prob.log, test$Grad_Rate)
 abline(a = 0, b = 1, lty = "dashed", col = "red")
 
-#### Fit lasso regression ####
+#### Predict lasso regression ####
+test$predicted.prob.lasso <- predict(lasso.reg, newx = test_matrix, type='response')  
+
+#Plot Observed Grad Rate OVER Predicted Grad Rate
+plot(test$predicted.prob.lasso, test$Grad_Rate)
+abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+
+#Calculate MSE 
+sqrt(mean((test$predicted.prob.lasso- test$Grad_Rate)^2, na.rm = T))*100
 
 
 #### Build Grouped Logistic Model ####
