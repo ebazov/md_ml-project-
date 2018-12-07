@@ -17,7 +17,7 @@ library(ROCR)
 #### Load Graduation Data ####
 graduation <- read_csv('Data/Input/2016-2017_Graduation_Outcomes_School.csv')
 
-
+#Select Cols
 graduation <- graduation %>%  select(DBN, `School Name`, `Demographic Variable`, `Cohort Year`, 
                                      `Cohort`, `Total Cohort #`, `Total Grads #`, 
                                      `Total Grads % of cohort`)
@@ -129,15 +129,43 @@ names(graduation)[which(names(graduation)=='NTA')] <- "Neighborhood"
 #### Merge School-level Crime Data ####
 
 #Select Major Crimes, Violent Crimes, and Property Crimes  (and DBN and School Year as keys)
-school_crime <- school_safety %>% select(DBN,  School_Year, Major_N, Vio_N, Prop_N)
 
-school_crime$School_Year <- school_crime %>% pull(School_Year) %>% 
-                            as.character() %>%   
-                            substr(start = 1, stop = 4) %>%
-                            as.numeric()
+#Recode Year to just Fall year
+school_safety$School_Year <- school_safety %>% pull(School_Year) %>% 
+                                  as.character() %>%   
+                                  substr(start = 1, stop = 4) %>%
+                                  as.numeric()
+
+#Extract Building Level Crime Data (Many schools are co-located in New York.)
+building_crime_stats <- school_safety %>% 
+                                  mutate(Register = replace_na(Register, 0),
+                                         Vio_N = replace_na(Vio_N, 0),
+                                         Prop_N = replace_na(Prop_N, 0),
+                                         Major_N = replace_na(Major_N, 0),
+                                         NoCrim_N = replace_na(NoCrim_N, 0)) %>% 
+                                  group_by(Building_Code, School_Year) %>%  
+                                  summarize(Register = max(Register),
+                                            Violent_Rate = max(Vio_N),
+                                            Property_Crime_Rate = max(Prop_N),
+                                            Major_Crime_Rate = max(Major_N),
+                                            Behavior_Rate = max(NoCrim_N)) %>% 
+                                  mutate( Violent_Rate = Violent_Rate / Register*100,
+                                          Property_Crime_Rate = Property_Crime_Rate / Register*100,
+                                          Major_Crime_Rate =  Major_Crime_Rate / Register*100,
+                                          Behavior_Rate = Behavior_Rate / Register*100)
+  
+
+
+#Select DBN and School Year as IDs and Build Coding as key. Remove Empty DBN (Representing Buildings)
+school_crime <- school_safety %>% 
+                      select(DBN, School_Year, Building_Code)  %>% 
+                      filter(DBN != "")  
+
+#Merge Building Crime Data with Schools
+school_crime <- school_crime %>%
+                      left_join(building_crime_stats, by = c("Building_Code", "School_Year"))
 
 graduation <- graduation %>% left_join(school_crime, by=c('DBN', 'Cohort_Year'='School_Year'))
-
 
 #### Merge Demographic Data ####
 
@@ -173,17 +201,17 @@ names(demo_data_2012_2013) <- gsub(pattern = " ",
                                    replacement = "_",
                                    x = names(demo_data_2012_2013))
 names(demo_data_2012_2013) <- gsub(pattern = "%",
-                                   replacement = "percent",
+                                   replacement = "per",
                                    x = names(demo_data_2012_2013))
 
 
 #Select Relevant Cols
 demo_data_2012_2013 <- demo_data_2012_2013 %>%  
                           select(DBN, School_Name, Year, Total_Enrollment,
-                                  percent_Male, percent_Female, 
-                                 percent_English_Language_Learners,percent_Students_with_Disabilities,
-                                 percent_Asian, percent_Black, percent_Hispanic, percent_White, 
-                                 percent_Poverty) 
+                                  per_Male, per_Female, 
+                                  per_English_Language_Learners, per_Students_with_Disabilities,
+                                  per_Asian, per_Black, per_Hispanic, per_White, 
+                                  per_Poverty) 
  
 #Recode School Year as Fall Year    
 demo_data_2012_2013$Year <- demo_data_2012_2013%>%
@@ -205,32 +233,14 @@ names(demo_data_pre_2013) <- names(demo_data_2012_2013)
 #Bind Datasets
 demographics <- rbind(demo_data_pre_2013, demo_data_2012_2013)
 
-#Change Names and Convert to percents
+#Abbreviate ELL and SWD
 demographics <- demographics %>% 
-                        mutate(per_Male = percent_Male ,
-                               per_Female = percent_Female ,
-                               per_ELL = percent_English_Language_Learners ,
-                               per_SWD = percent_Students_with_Disabilities ,
-                               per_Asian = percent_Asian ,
-                               per_Black = percent_Black ,
-                               per_Hispanic = percent_Hispanic ,
-                               per_White = percent_White,
-                               per_Poverty = percent_Poverty) %>% 
-                         select(-percent_Male, - percent_Female, 
-                                -percent_Students_with_Disabilities,
-                                -percent_Asian, -percent_Black, -percent_Hispanic, -percent_White,
-                                -percent_Poverty)
+                        rename(per_ELL = per_English_Language_Learners ,
+                               per_SWD = per_Students_with_Disabilities ) 
 
 #Merge Demographic Data with
 graduation <- graduation %>% 
                   left_join(demographics, c("DBN", "Cohort_Year"= "School_Year"))
-
-
-#### Convert Crime Numbers to Rates ####
-graduation <- graduation %>% mutate(Violent_Rate = Vio_N/Total_Enrollment * 100, 
-                                    Property_Crime_Rate = Prop_N/Total_Enrollment * 100,
-                                    Major_Crime_Rate = Major_N/Total_Enrollment * 100) %>% 
-                              select(-Vio_N, -Prop_N, -Major_N )
 
 
 #### Code Transfer High Schools  ####
@@ -264,15 +274,13 @@ graduation$District <- graduation %>%
 
 grad_2013 <-  graduation %>%  filter(Cohort_Year == 2013) 
 
+colSums(is.na(grad_2013))
 
 
 #### Train/Test Split ####
 set.seed(9999)
 train <- grad_2013 %>% sample_frac(0.8) 
 test <- grad_2013 %>% filter(!(DBN %in% train$DBN))
-
-
-test$District %in% train$District %>%  sort()
 
 #### Fit GLM Model on Training Data ####
 
@@ -309,16 +317,21 @@ anova(mod, mod_poverty,  test="Chisq")
 
 mod_district <- glm(Grad_Rate ~ District +per_Female + 
                       per_Asian+ per_Black+ per_Hispanic +
-                      per_ELL + per_SWD +
-                      per_Poverty ,
+                      per_ELL + per_SWD + 
+                      per_Poverty +    Major_Crime_Rate + 
+                      Transfer,
                     data = train, weight =  Cohort_Total,
                     family = binomial(link = "logit"))
 summary(mod_district)
-colSums(is.na(train))
-
 coef(mod_district) %>%  exp()
 
-anova(mod_district, mod_crimes, test='Chisq')
+anova(mod_crimes, mod_district,  test='Chisq')
+
+#Plot Residuals/ 
+plot(mod_district)
+
+#Look at Outliers
+train %>% slice(c(10, 126, 138, 182, 299, 347)) %>%  as.data.frame()
 
 #####Generating predictions from model with district#######
 
@@ -329,7 +342,9 @@ test$predicted.prob.log <- predict(mod_district, newdata = test, type='response'
 #Calculate MSE 
 sqrt(mean((test$predicted.prob.log - test$Grad_Rate)^2, na.rm = T))
 
+#Plot Observed Grad Rate OVER Predicted Grad Rate
 plot(test$predicted.prob.log, test$Grad_Rate)
+abline(a = 0, b = 1, lty = "dashed", col = "red")
 
 #### Fit lasso regression ####
 
