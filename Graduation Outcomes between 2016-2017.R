@@ -35,6 +35,15 @@ names(graduation) <- gsub("%", "per", names(graduation))
 graduation <- graduation %>%  filter(Cohort == "4 year August" ) %>%  select(- Cohort)
 graduation <- graduation %>%  filter(Demographic == "All Students" ) %>%  select(- Demographic)
 
+
+#Calculate Number of Schools with Suppressed Graduation Info
+sum(graduation$Total_Cohort  == 's')
+sum(graduation[graduation$Cohort_Year==2013, ]$Total_Grads  == 's')
+sum(graduation[graduation$Cohort_Year==2013, ]$Total_Grads_per_of_cohort == 's')
+sum(graduation[graduation$Cohort_Year==2013, ]$Total_Grads_per_of_cohort == 's' &
+      graduation[graduation$Cohort_Year==2013, ]$Total_Grads_per_of_cohort != 's')
+# 8 schools were missing 
+
 #Convert Number Variables from Character to Numeric
 graduation <- graduation %>% 
                     mutate(Cohort_Total = as.numeric(Total_Cohort),
@@ -444,8 +453,12 @@ mod_forest <- randomForest(Grad_Rate ~ District +per_Female +
 test$predicted.prob.forest <- predict(mod_forest, newdata = test)
 
 #Plot Prediction
-plot(test$predicted.prob.lasso, test$Grad_Rate)
+plot(test$predicted.prob.forest, test$Grad_Rate)
 abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+#Calculate RMSE 
+sqrt(mean((test$predicted.prob.forest- test$Grad_Rate)^2, na.rm = T))*100
+
 
 #### Build Grouped Logistic Model ####
 # 
