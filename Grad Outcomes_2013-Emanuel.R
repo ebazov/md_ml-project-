@@ -393,8 +393,6 @@ set.seed(1994)
 train <- grad_2013 %>% sample_frac(0.5) 
 test <- grad_2013 %>% filter(!(DBN %in% train$DBN))
 
-
-
 #### Fit: Grouped Binomial Regression Model ####
 mod_arrests <- glm(Grad_Rate ~ District + per_Female + 
                      per_Asian+ per_Black+ per_Hispanic +
@@ -453,7 +451,7 @@ mod_forest <- randomForest(Grad_Rate ~ District +per_Female +
                            data = train, weight =  Cohort_Total, ntree = 1000)
 
 #### Training Performance: Grouped Logistic Model ####
-
+par(mfrow=c(1,1))
 
 #Calculate Prediction Group logistic Regression Model 
 train$predicted.prob.log <- predict(mod_arrests, type = 'response')
@@ -463,9 +461,12 @@ log_train_rmse <- sqrt(mean((train$predicted.prob.log - train$Grad_Rate)^2))*100
 
 #Plot Logistic Regression  Model Predictions Versus 
 plot(train$predicted.prob.log, train$Grad_Rate, 
-     xlim = c(0, 1), ylim = c(0, 1))
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Training Performance: Grouped Logistic Regression')
 abline(a= 0, b = 1, lty = 'dashed', col = 'red')
-
 
 #### Training Performance: Lasso Model ####
 
