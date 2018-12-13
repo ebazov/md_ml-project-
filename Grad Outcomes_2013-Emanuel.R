@@ -451,7 +451,7 @@ mod_forest <- randomForest(Grad_Rate ~ District +per_Female +
                            data = train, weight =  Cohort_Total, ntree = 1000)
 
 #### Training Performance: Grouped Logistic Model ####
-par(mfrow=c(1,1))
+par(mfrow=c(1,2))
 
 #Calculate Prediction Group logistic Regression Model 
 train$predicted.prob.log <- predict(mod_arrests, type = 'response')
@@ -465,43 +465,8 @@ plot(train$predicted.prob.log, train$Grad_Rate,
      ylab='Observed Graduation Rate',
      xlim = 0:1,
      ylim = 0:1,
-     main = 'Training Performance: Grouped Logistic Regression')
+     main = 'Logistic Model: Train')
 abline(a= 0, b = 1, lty = 'dashed', col = 'red')
-
-#### Training Performance: Lasso Model ####
-
-#Predict Grad Rates for Training Data
-train$predicted.prob.lasso <- predict(lasso.reg,  newx = x_train, type='response')
-
-#Calculate RMSE
-lasso_train_rmse <- sqrt(mean((train$predicted.prob.lasso- train$Grad_Rate)^2))*100
-
-#Plot Predicted Predictions Versus Actual Grad Rates 
-plot(train$predicted.prob.lasso, train$Grad_Rate, 
-     xlab='Predicted Graduation Rate', 
-     ylab='Observed Graduation Rate',
-     xlim = 0:1,
-     ylim = 0:1,
-     main = 'Training Performance: Lasso Regression')
-abline(a = 0, b = 1, lty = "dashed", col = "red")
-
-#### Training Performance: Random Forest #####
-
-#Predict Grad Rates for Training Data
-train$predicted.prob.forest <- predict(mod_forest)
-
-#Calculate RMSE
-forest_train_rmse <- sqrt(mean((train$predicted.prob.forest- train$Grad_Rate)^2))*100
-
-#Plot Predicted Predictions Versus Actual Grad Rates 
-plot(train$predicted.prob.forest, train$Grad_Rate, 
-     xlab='Predicted Graduation Rate', 
-     ylab='Observed Graduation Rate',
-     xlim = 0:1,
-     ylim = 0:1,
-     main = 'Training Performance: Random Forest')
-abline(a = 0, b = 1, lty = "dashed", col = "red")
-
 
 
 #### Test Performance: Logistic Regression  ####
@@ -518,9 +483,27 @@ plot(test$predicted.prob.log, test$Grad_Rate,
      ylab='Observed Graduation Rate',
      xlim = 0:1,
      ylim = 0:1,
-     main = 'Test Performance: Grouped Binomial Regression')
+     main = 'Logistic Model: Test')
 abline(a = 0, b = 1, lty = "dashed", col = "red")
 
+
+
+#### Training Performance: Lasso Model ####
+
+#Predict Grad Rates for Training Data
+train$predicted.prob.lasso <- predict(lasso.reg,  newx = x_train, type='response')
+
+#Calculate RMSE
+lasso_train_rmse <- sqrt(mean((train$predicted.prob.lasso- train$Grad_Rate)^2))*100
+
+#Plot Predicted Predictions Versus Actual Grad Rates 
+plot(train$predicted.prob.lasso, train$Grad_Rate, 
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Lasso Model: Train')
+abline(a = 0, b = 1, lty = "dashed", col = "red")
 
 #### Test Performance: Lasso Regression ####
 
@@ -536,7 +519,24 @@ plot(test$predicted.prob.lasso, test$Grad_Rate,
      ylab='Observed Graduation Rate',
      xlim = 0:1,
      ylim = 0:1,
-     main = 'Test Performance: Lasso Regression')
+     main = 'Lasso Model: Test')
+abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+#### Training Performance: Random Forest #####
+
+#Predict Grad Rates for Training Data
+train$predicted.prob.forest <- predict(mod_forest)
+
+#Calculate RMSE
+forest_train_rmse <- sqrt(mean((train$predicted.prob.forest- train$Grad_Rate)^2))*100
+
+#Plot Predicted Predictions Versus Actual Grad Rates 
+plot(train$predicted.prob.forest, train$Grad_Rate, 
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Random Forest: Train')
 abline(a = 0, b = 1, lty = "dashed", col = "red")
 
 #### Test Performance: Random Forest ####
@@ -553,10 +553,8 @@ plot(test$predicted.prob.forest, test$Grad_Rate,
      ylab='Observed Graduation Rate',
      xlim = 0:1,
      ylim = 0:1,
-     main = 'Test Performance: Random Forest')
+     main = 'Random Forest: Test')
 abline(a = 0, b = 1, lty = "dashed", col = "red")
-
-
 
 #### Compare Performances: Bar Plots ####
 
