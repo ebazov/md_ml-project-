@@ -389,145 +389,61 @@ nrow(missing_data) / nrow(grad_2013) * 100
 grad_2013 <- grad_2013[complete.cases(grad_2013),]
 
 #### Train/Test Split ####
-set.seed(9999)
-train <- grad_2013 %>% sample_frac(0.8) 
+set.seed(1994)
+train <- grad_2013 %>% sample_frac(0.5) 
 test <- grad_2013 %>% filter(!(DBN %in% train$DBN))
 
-#### Fit GLM Model on Training Data ####
 
-#Model with Demographic, ELL and SWD
-mod <- glm(Grad_Rate ~ per_Female + 
-             per_Asian+ per_Black+ per_Hispanic+
-             per_ELL + per_SWD +
-             Transfer,
-           data = train, weight =  Cohort_Total,
-           family = binomial(link = "logit"))
-summary(mod)
 
-#Model with Poverty
-mod_poverty <- glm(Grad_Rate ~ per_Female+ 
-                     per_Asian+ per_Black+ per_Hispanic + 
+#### Fit: Grouped Binomial Regression Model ####
+mod_arrests <- glm(Grad_Rate ~ District + per_Female + 
+                     per_Asian+ per_Black+ per_Hispanic +
                      per_ELL + per_SWD +
-                     per_Poverty + 
-                     Transfer,
+                     per_Poverty +
+                     Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+                     Transfer+Arrest_Rate, 
                    data = train, weight =  Cohort_Total,
                    family = binomial(link = "logit"))
-summary(mod_poverty)
-
-#Model with  Crime Data 
-mod_crimes <- glm(Grad_Rate ~ per_Female + 
-                    per_Asian+ per_Black+ per_Hispanic +
-                    per_ELL + per_SWD +
-                    per_Poverty +
-                    Property_Crime_Rate + Violent_Rate + Behavior_Rate +
-                    Transfer, 
-                  data = train, weight =  Cohort_Total,
-                  family = binomial(link = "logit"))
-summary(mod_crimes)
-anova(mod, mod_poverty,  test="Chisq")
-
-#Model with arrest data
-mod_arrests <- glm(Grad_Rate ~ per_Female + 
-                                   per_Asian+ per_Black+ per_Hispanic +
-                                   per_ELL + per_SWD +
-                                   per_Poverty +
-                                   Property_Crime_Rate + Violent_Rate + Behavior_Rate +
-                                   Transfer+Arrest_Rate, 
-                                 data = train, weight =  Cohort_Total,
-                                 family = binomial(link = "logit"))
 summary(mod_arrests)
 
-
-#Fixed Effects Model with District
-mod_district <- glm(Grad_Rate ~ District +per_Female + 
-                      per_Asian+ per_Black+ per_Hispanic +
-                      per_ELL + per_SWD + 
-                      per_Poverty +
-                      Property_Crime_Rate + Violent_Rate + Behavior_Rate + Arrest_Rate+
-                      Transfer,
-                    data = train, weight =  Cohort_Total,
-                    family = binomial(link = "logit"))
-summary(mod_district)
-coef(mod_district) %>%  exp()
+#### Fit: Lasso Model ####
 
 
-mod_diff <- glm(cbind(Grad_Total, Cohort_Total - Grad_Total) ~ per_Female + 
-                  per_Asian+ per_Black+ per_Hispanic +
-                  per_ELL + per_SWD + 
-                  per_Poverty +
-                  Property_Crime_Rate + Violent_Rate + Behavior_Rate +
-                  Transfer,
-                data = train,
-                family = binomial(link = "logit"))
-summary(mod_diff)
-summary(mod_crimes)
+#Extract Y Values for Training Data
+## Y Values are stored in2 Columns: Number graduated, number not graduate
+## NOTE: This is equivalent to the proportions we used for regular regression model.  
+## NOTE: However, proportions did not work with glmnet lasso algorithms
+y_train <- as.matrix(cbind(train$Cohort_Total - train$Grad_Total, train$Grad_Total))
 
-
-anova(mod_crimes, mod_district,  test='Chisq')
-
-#Full Model Without Poverty Variable
-mod_drop_Poverty <- glm(Grad_Rate ~ District +per_Female + 
-                          per_Asian+ per_Black+ per_Hispanic +
-                          per_ELL + per_SWD + 
-                          Property_Crime_Rate + Violent_Rate + Behavior_Rate +
-                          Transfer,
-                        data = train, weight =  Cohort_Total,
-                        family = binomial(link = "logit"))
-summary(mod_drop_Poverty)
-
-
-anova(mod_drop_Poverty, mod_district,  test='Chisq')
-
-#Plot Residuals/ 
-plot(mod_district)
-
-
-#Look at Outliers
-train %>% slice(c(10, 126, 138, 182, 299, 347)) %>%  as.data.frame()
-
-##Lasso regression
-
-
-y <- as.matrix(cbind(train$Cohort_Total - train$Grad_Total, train$Grad_Total))
-x <- model.matrix(~District + per_Female + 
+#Create Design Matrix for Training Data
+x_train <- model.matrix(~District + per_Female + 
                     per_Asian+ per_Black + per_Hispanic +
                     per_ELL + per_SWD + 
-                    per_Poverty + Major_Crime_Rate + Arrest_Rate+
-                    Transfer-1, data=train)
-test_matrix <- model.matrix(~District + per_Female + 
-                              per_Asian+ per_Black + per_Hispanic +
-                              per_ELL + per_SWD + 
-                              per_Poverty + Major_Crime_Rate + Arrest_Rate+
-                              Transfer-1, data=test)
-lasso.reg <- glmnet(x, y, family='binomial', alpha=1, lambda=0.01)
+                    per_Poverty + 
+                    Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+                    + Arrest_Rate+
+                    Transfer, data=train)[, -1]
+
+#Create Design Matrix for Test Data
+x_test <- model.matrix(~District + per_Female + 
+                         per_Asian+ per_Black + per_Hispanic +
+                         per_ELL + per_SWD + 
+                         per_Poverty + 
+                         Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+                         + Arrest_Rate+
+                         Transfer, data=test)[, -1]
+
+
+#Fit Lasso Model
+lasso.reg <- glmnet(x = x_train, y = y_train, family='binomial', alpha=1, lambda=0.01)
+
+#Explore Coefficients
 coef(lasso.reg)
 
 
-#####Generating predictions from model with district#######
 
 
-#Generate Predictions
-test$predicted.prob.log <- predict(mod_district, newdata = test, type='response')  
-
-#Calculate RMSE 
-log <- sqrt(mean((test$predicted.prob.log - test$Grad_Rate)^2, na.rm = T))*100
-
-#Plot Observed Grad Rate OVER Predicted Grad Rate
-plot(test$predicted.prob.log, test$Grad_Rate, xlab='Predicted Graduation Rate', ylab='Observed Graduation Rate')
-abline(a = 0, b = 1, lty = "dashed", col = "red")
-
-#### Predict lasso regression ####
-test$predicted.prob.lasso <- predict(lasso.reg, newx = test_matrix, type='response')  
-
-#Plot Observed Grad Rate OVER Predicted Grad Rate
-plot(test$predicted.prob.lasso, test$Grad_Rate, xlab='Predicted Graduation Rate', ylab='Observed Graduation Rate')
-abline(a = 0, b = 1, lty = "dashed", col = "red")
-
-
-#Calculate RMSE 
-lasso <- sqrt(mean((test$predicted.prob.lasso- test$Grad_Rate)^2, na.rm = T))*100
-
-#### Random Forest #####
+#### Fit: Random Forest #####
 mod_forest <- randomForest(Grad_Rate ~ District +per_Female + 
                              per_Asian+ per_Black+ per_Hispanic +
                              per_ELL + per_SWD + 
@@ -536,25 +452,214 @@ mod_forest <- randomForest(Grad_Rate ~ District +per_Female +
                              Transfer+Arrest_Rate,
                            data = train, weight =  Cohort_Total, ntree = 1000)
 
-test$predicted.prob.forest <- predict(mod_forest, newdata = test)
+#### Training Performance: Grouped Logistic Model ####
 
-#Plot Prediction
-plot(test$predicted.prob.forest, test$Grad_Rate, xlab='Predicted Graduation Rate', ylab='Observed Graduation Rate')
-abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+#Calculate Prediction Group logistic Regression Model 
+train$predicted.prob.log <- predict(mod_arrests, type = 'response')
 
 #Calculate RMSE 
-forest <- sqrt(mean((test$predicted.prob.forest- test$Grad_Rate)^2, na.rm = T))*100
-barplot(c(lasso, forest, log), names.arg=c('Lasso', 'Random Forest', "Logistic"), 
-        xlab="Model RMSE", col=c("red", "green", "blue"))
-#RMSE for Train Data
-train$predicted.prob.log <- predict(mod_district)
+log_train_rmse <- sqrt(mean((train$predicted.prob.log - train$Grad_Rate)^2))*100
+
+#Plot Logistic Regression  Model Predictions Versus 
+plot(train$predicted.prob.log, train$Grad_Rate, 
+     xlim = c(0, 1), ylim = c(0, 1))
+abline(a= 0, b = 1, lty = 'dashed', col = 'red')
+
+
+#### Training Performance: Lasso Model ####
+
+#Predict Grad Rates for Training Data
+train$predicted.prob.lasso <- predict(lasso.reg,  newx = x_train, type='response')
+
+#Calculate RMSE
+lasso_train_rmse <- sqrt(mean((train$predicted.prob.lasso- train$Grad_Rate)^2))*100
+
+#Plot Predicted Predictions Versus Actual Grad Rates 
+plot(train$predicted.prob.lasso, train$Grad_Rate, 
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Training Performance: Lasso Regression')
+abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+#### Training Performance: Random Forest #####
+
+#Predict Grad Rates for Training Data
 train$predicted.prob.forest <- predict(mod_forest)
-train$predicted.prob.lasso <- predict(lasso.reg, newx=x)
+
+#Calculate RMSE
+forest_train_rmse <- sqrt(mean((train$predicted.prob.forest- train$Grad_Rate)^2))*100
+
+#Plot Predicted Predictions Versus Actual Grad Rates 
+plot(train$predicted.prob.forest, train$Grad_Rate, 
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Training Performance: Random Forest')
+abline(a = 0, b = 1, lty = "dashed", col = "red")
 
 
-log_train <- sqrt(mean((train$predicted.prob.log- train$Grad_Rate)^2, na.rm = T))*100
-lasso_train <- sqrt(mean((train$predicted.prob.lasso- train$Grad_Rate)^2, na.rm = T))*100
-forest_train <- sqrt(mean((train$predicted.prob.forest- train$Grad_Rate)^2, na.rm = T))*100
 
-barplot(c(forest_train, log_train, lasso_train ), names.arg=c('Random Forest','Logistic', "Lasso"), 
-        xlab="Model RMSE", col=c("red", "green", "blue"))
+#### Test Performance: Logistic Regression  ####
+
+#Generate Predictions
+test$predicted.prob.log <- predict(mod_arrests, newdata = test, type='response')  
+
+#Calculate RMSE 
+log_test_rmse <- sqrt(mean((test$predicted.prob.log - test$Grad_Rate)^2))*100
+
+#Plot Observed Grad Rate OVER Predicted Grad Rate
+plot(test$predicted.prob.log, test$Grad_Rate, 
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Test Performance: Grouped Binomial Regression')
+abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+
+#### Test Performance: Lasso Regression ####
+
+#Predict Test Data
+test$predicted.prob.lasso <- predict(lasso.reg, newx = x_test, type='response')  
+
+#Calculate Test RMSE
+lasso_test_rmse <- sqrt(mean((test$predicted.prob.lasso- test$Grad_Rate)^2))*100
+
+#Plot Observed Grad Rate OVER Predicted Grad Rate
+plot(test$predicted.prob.lasso, test$Grad_Rate, 
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Test Performance: Lasso Regression')
+abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+#### Test Performance: Random Forest ####
+
+#Predict Grad Rates in test data
+test$predicted.prob.forest <- predict(mod_forest, newdata = test)
+
+#Calculate RMSE 
+forest_test_rmse <- sqrt(mean((test$predicted.prob.forest- test$Grad_Rate)^2))*100
+
+#Plot Prediction
+plot(test$predicted.prob.forest, test$Grad_Rate, 
+     xlab='Predicted Graduation Rate', 
+     ylab='Observed Graduation Rate',
+     xlim = 0:1,
+     ylim = 0:1,
+     main = 'Test Performance: Random Forest')
+abline(a = 0, b = 1, lty = "dashed", col = "red")
+
+
+
+#### Compare Performances: Bar Plots ####
+
+#Compare  Performance on TRAINING data 
+compare_rmse_train <- data.frame(
+                        rmse =c(forest_train_rmse, lasso_train_rmse, log_train_rmse),
+                        model = c('Random Forest', "Lasso", 'Logistic') )
+compare_rmse_train$order <- sort.int(compare_rmse_train$rmse, index.return =T)$ix
+
+
+color_vec <- c("green", "yellow", "red")
+color_vec_train <- color_vec[compare_rmse_train$order]
+
+
+par(mfrow=c(1,2))
+
+#PLOT Training data
+barplot(compare_rmse_train$rmse[compare_rmse_train$order], 
+        names.arg= compare_rmse_train$model[compare_rmse_train$order], 
+        xlab="Model RMSE on TRAINING data", 
+        ylab = 'RMSE',
+        col = color_vec[compare_rmse_train$order],
+        ylim = c(0,16))
+
+
+#Compare  Performance on TRAINING data 
+compare_rmse_test <- data.frame(
+                      rmse =c(forest_test_rmse, lasso_test_rmse, log_test_rmse),
+                      model = c('Random Forest', "Lasso", 'Logistic') )
+compare_rmse_test$order <- sort.int(compare_rmse_test$rmse, index.return =T)$ix
+
+
+#PLOT Performance on TEST data 
+barplot(compare_rmse_test$rmse[compare_rmse_test$order], 
+        names.arg = compare_rmse_test$model[compare_rmse_test$order], 
+        xlab = "Model RMSE on TEST data",
+        ylab = 'RMSE',
+        col = color_vec[compare_rmse_test$order],
+        ylim = c(0,16))
+
+#Compare Actual RMSE values 
+compare_rmse_train
+compare_rmse_test
+
+
+
+#### Appendix: Model Exploration ####
+
+# #Model with Demographic, ELL and SWD
+# mod <- glm(Grad_Rate ~ per_Female + 
+#              per_Asian+ per_Black+ per_Hispanic+
+#              per_ELL + per_SWD +
+#              Transfer,
+#            data = train, weight =  Cohort_Total,
+#            family = binomial(link = "logit"))
+# summary(mod)
+# 
+# #Model with Poverty
+# mod_poverty <- glm(Grad_Rate ~ per_Female+ 
+#                      per_Asian+ per_Black+ per_Hispanic + 
+#                      per_ELL + per_SWD +
+#                      per_Poverty + 
+#                      Transfer,
+#                    data = train, weight =  Cohort_Total,
+#                    family = binomial(link = "logit"))
+# summary(mod_poverty)
+# 
+# #Model with  Crime Data 
+# mod_crimes <- glm(Grad_Rate ~ per_Female + 
+#                     per_Asian+ per_Black+ per_Hispanic +
+#                     per_ELL + per_SWD +
+#                     per_Poverty +
+#                     Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+#                     Transfer, 
+#                   data = train, weight =  Cohort_Total,
+#                   family = binomial(link = "logit"))
+# summary(mod_crimes)
+# anova(mod, mod_poverty,  test="Chisq")
+# 
+# 
+# 
+# #Fixed Effects Model with District
+# mod_district <- glm(Grad_Rate ~ District +per_Female + 
+#                       per_Asian+ per_Black+ per_Hispanic +
+#                       per_ELL + per_SWD + 
+#                       per_Poverty +
+#                       Property_Crime_Rate + Violent_Rate + Behavior_Rate + 
+#                       Transfer,
+#                     data = train, weight =  Cohort_Total,
+#                     family = binomial(link = "logit"))
+# summary(mod_district)
+# 
+# 
+# #Model with arrest data
+# mod_arrests <- glm(Grad_Rate ~ District + per_Female + 
+#                      per_Asian+ per_Black+ per_Hispanic +
+#                      per_ELL + per_SWD +
+#                      per_Poverty +
+#                      Property_Crime_Rate + Violent_Rate + Behavior_Rate +
+#                      Transfer+Arrest_Rate, 
+#                    data = train, weight =  Cohort_Total,
+#                    family = binomial(link = "logit"))
+# summary(mod_arrests)
+# 
+# anova(mod_district, mod_arrests, test = 'Chisq')
+# 
+

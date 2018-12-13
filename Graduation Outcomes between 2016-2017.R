@@ -342,7 +342,7 @@ mod_poverty <- glm(Grad_Rate ~ per_Female+
                    family = binomial(link = "logit"))
 summary(mod_poverty)
 
-#Model with  Crime Data 
+#Model with  School Crime Data 
 mod_crimes <- glm(Grad_Rate ~ per_Female + 
                     per_Asian+ per_Black+ per_Hispanic +
                     per_ELL + per_SWD +
