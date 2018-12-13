@@ -1,12 +1,9 @@
-#### Project INFO ####
-#Formula
+# William Spagnola, Ekanta Nagi, Emanuel Bazov
+# APSTA-2047: Messy Data & Machine Learning 
+# Prof. Shroff
+#Final Project
+# December 13, 2018
 
-# Graduation ~ Demographics_School + Avg_Income_Neighborhood +  Safety_School +
-# Class_Size_School + Crime_Neighborhood + Funding_School + %ESL_School + %Special_Ed_School s
-
-
-#Training Years: 2008 to 2012 Incoming
-#Test Year: 2013 Incoming
 
 #### Load Packages ####
 library(broom)
