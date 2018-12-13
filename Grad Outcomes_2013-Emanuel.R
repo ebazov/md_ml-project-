@@ -402,7 +402,10 @@ mod_arrests <- glm(Grad_Rate ~ District + per_Female +
                      Transfer+Arrest_Rate, 
                    data = train, weight =  Cohort_Total,
                    family = binomial(link = "logit"))
-summary(mod_arrests)
+summary(mod_arrests) 
+
+#Coefficents 
+(coef(mod_arrests) %>% exp() -1 ) %>% round(4)*100
 
 #Create Table for Coefficients from Final Regression Model
 final_mod_coefs <- tidy(mod_arrests)
