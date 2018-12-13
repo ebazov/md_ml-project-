@@ -404,6 +404,12 @@ mod_arrests <- glm(Grad_Rate ~ District + per_Female +
                    family = binomial(link = "logit"))
 summary(mod_arrests)
 
+#Create Table for Coefficients from Final Regression Model
+final_mod_coefs <- tidy(mod_arrests)
+final_mod_coefs <- final_mod_coefs %>%  
+                      filter(grepl(patter = 'District', final_mod_coefs$term)==F)
+final_mod_coefs %>%  as.data.frame()
+
 #### Fit: Lasso Model ####
 
 
@@ -438,8 +444,8 @@ lasso.reg <- glmnet(x = x_train, y = y_train, family='binomial', alpha=1, lambda
 #Explore Coefficients
 coef(lasso.reg)
 
-
-
+#Create Table for LASSO coefficients
+tidy(lasso.reg) %>%  as.data.frame()
 
 #### Fit: Random Forest #####
 mod_forest <- randomForest(Grad_Rate ~ District +per_Female + 
@@ -449,6 +455,14 @@ mod_forest <- randomForest(Grad_Rate ~ District +per_Female +
                              Property_Crime_Rate + Violent_Rate + Behavior_Rate +
                              Transfer+Arrest_Rate,
                            data = train, weight =  Cohort_Total, ntree = 1000)
+
+#Show Important Features 
+mod_forest_names <- importance(mod_forest) %>% rownames()
+node_purity <- importance(mod_forest) %>% as.numeric() 
+import_coefs_rf <- data.frame(Features = mod_forest_names,
+                         IncNodePurity = node_purity ) %>% 
+                         arrange(desc(IncNodePurity))
+print(import_coefs_rf)
 
 #### Training Performance: Grouped Logistic Model ####
 par(mfrow=c(1,2))
